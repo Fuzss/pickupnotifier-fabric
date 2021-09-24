@@ -1,9 +1,10 @@
 package fuzs.pickupnotifier.network.message;
 
 import fuzs.pickupnotifier.client.handler.AddEntriesHandler;
+import fuzs.pickupnotifier.lib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fmllegacy.network.NetworkEvent;
 
 public class S2CTakeItemStackMessage implements Message {
 
@@ -31,9 +32,19 @@ public class S2CTakeItemStackMessage implements Message {
     }
 
     @Override
-    public void handle(NetworkEvent.Context ctx) {
+    public TakeItemStackHandler makeHandler() {
 
-        ctx.enqueueWork(() -> AddEntriesHandler.addItemEntry(this.stack));
+        return new TakeItemStackHandler();
+    }
+
+    private static class TakeItemStackHandler implements PacketHandler<S2CTakeItemStackMessage> {
+
+        @Override
+        public void handle(S2CTakeItemStackMessage packet, Player player, Object gameInstance) {
+
+            AddEntriesHandler.addItemEntry(packet.stack);
+        }
+
     }
 
 }

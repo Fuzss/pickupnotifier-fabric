@@ -1,9 +1,10 @@
-package fuzs.pickupnotifier.network;
+package fuzs.pickupnotifier.lib.network;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import fuzs.pickupnotifier.PickUpNotifier;
-import fuzs.pickupnotifier.network.message.Message;
+import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.pickupnotifier.lib.util.PuzzlesUtil;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -13,20 +14,11 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.fmllegacy.network.NetworkDirection;
-import net.minecraftforge.fmllegacy.network.NetworkEvent;
-import net.minecraftforge.fmllegacy.network.NetworkRegistry;
-import net.minecraftforge.fmllegacy.network.PacketDistributor;
-import net.minecraftforge.fmllegacy.network.simple.SimpleChannel;
 import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -48,7 +40,6 @@ public enum NetworkHandler {
 
     /**
      * register a message for a side
-     * mostly from AutoRegLib, thanks Vazkii!
      * @param clazz     message class type
      * @param supplier supplier for message (called when receiving at executing end)
      *                 we use this additional supplier to avoid having to invoke the class via reflection
@@ -58,44 +49,14 @@ public enum NetworkHandler {
      */
     public <T extends Message> void register(Class<T> clazz, Supplier<T> supplier, NetworkDirection direction) {
 
-        ResourceLocation identifier = nextIdentifier();
-        MESSAGE_REGISTRY.put(clazz, identifier);
-
+        ResourceLocation channelName = nextIdentifier();
+        MESSAGE_REGISTRY.put(clazz, channelName);
+        final Function<FriendlyByteBuf, Message> decode = buf -> PuzzlesUtil.make(supplier.get(), message -> message.read(buf));
         switch (direction) {
 
-            case PLAY_TO_CLIENT -> {
-
-                ClientPlayNetworking.registerGlobalReceiver(identifier, (client, handler, buf, responseSender) -> {
-
-                    T message = supplier.get();
-                    message.read(buf);
-                });
-            }
-
+            case PLAY_TO_CLIENT -> PickUpNotifier.PROXY.registerClientReceiver(channelName, decode);
+            case PLAY_TO_SERVER -> PickUpNotifier.PROXY.registerServerReceiver(channelName, decode);
         }
-
-        BiConsumer<T, FriendlyByteBuf> encode = Message::write;
-        Function<FriendlyByteBuf, T> decode = (buf) -> {
-
-            T message = supplier.get();
-            message.read(buf);
-            return message;
-        };
-        BiConsumer<T, Supplier<NetworkEvent.Context>> handle = (msg, ctxSup) -> {
-
-            NetworkEvent.Context ctx = ctxSup.get();
-            if (ctx.getDirection() == direction) {
-
-                msg.handle(ctx);
-            } else {
-
-                PickUpNotifier.LOGGER.warn("Received message {} at wrong side, was {}, expected {}", msg.getClass().getSimpleName(), ctx.getDirection().getReceptionSide(), direction.getReceptionSide());
-            }
-
-            ctx.setPacketHandled(true);
-        };
-
-        this.channel.registerMessage(this.DISCRIMINATOR.getAndIncrement(), clazz, encode, decode, handle);
     }
 
     private static ResourceLocation nextIdentifier() {
@@ -131,21 +92,10 @@ public enum NetworkHandler {
     /**
      * send message from server to all clients
      * @param message message to send
-     * @param level   server level for server
      */
-    public void sendToAll(Message message, ServerLevel level) {
+    public void sendToAll(Message message) {
 
-        this.sendToAll(message, level.getServer());
-    }
-
-    /**
-     * send message from server to all clients
-     * @param message message to send
-     * @param server  minecraft server
-     */
-    public void sendToAll(Message message, MinecraftServer server) {
-
-        server.getPlayerList().broadcastAll(createS2CPacket(message));
+        PickUpNotifier.PROXY.getGameServer().getPlayerList().broadcastAll(createS2CPacket(message));
     }
 
     /**
@@ -154,7 +104,7 @@ public enum NetworkHandler {
      * @param pos source position
      * @param level dimension key provider level
      */
-    public void sendToAllNear(Message message, BlockPos pos, ServerLevel level) {
+    public void sendToAllNear(Message message, BlockPos pos, Level level) {
 
         this.sendToAllNearExcept(message, null, pos.getX(), pos.getY(), pos.getZ(), 64.0, level);
     }
@@ -169,9 +119,9 @@ public enum NetworkHandler {
      * @param distance distance from source to receive message
      * @param level dimension key provider level
      */
-    public void sendToAllNearExcept(Message message, @Nullable ServerPlayer exclude, double posX, double posY, double posZ, double distance, ServerLevel level) {
+    public void sendToAllNearExcept(Message message, @Nullable ServerPlayer exclude, double posX, double posY, double posZ, double distance, Level level) {
 
-        level.getServer().getPlayerList().broadcast(exclude, posX, posY, posZ, distance, level.dimension(), createS2CPacket(message));
+        PickUpNotifier.PROXY.getGameServer().getPlayerList().broadcast(exclude, posX, posY, posZ, distance, level.dimension(), createS2CPacket(message));
     }
 
     /**
@@ -179,20 +129,19 @@ public enum NetworkHandler {
      * @param message message to send
      * @param level dimension key provider level
      */
-    public void sendToDimension(Message message, ServerLevel level) {
+    public void sendToDimension(Message message, Level level) {
 
-        this.sendToDimension(message, level.dimension(), level.getServer());
+        this.sendToDimension(message, level.dimension());
     }
 
     /**
      * send message from server to all clients in dimension
      * @param message message to send
      * @param dimension dimension to send message in
-     * @param server    minecraft server
      */
-    public void sendToDimension(Message message, ResourceKey<Level> dimension, MinecraftServer server) {
+    public void sendToDimension(Message message, ResourceKey<Level> dimension) {
 
-        server.getPlayerList().broadcastAll(createS2CPacket(message), dimension);
+        PickUpNotifier.PROXY.getGameServer().getPlayerList().broadcastAll(createS2CPacket(message), dimension);
     }
 
     /**

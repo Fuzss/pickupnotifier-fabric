@@ -1,8 +1,8 @@
 package fuzs.pickupnotifier.network.message;
 
 import fuzs.pickupnotifier.client.handler.AddEntriesHandler;
+import fuzs.pickupnotifier.lib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.util.thread.BlockableEventLoop;
 import net.minecraft.world.entity.player.Player;
 
 public class S2CTakeItemMessage implements Message {
@@ -43,7 +43,7 @@ public class S2CTakeItemMessage implements Message {
     private static class TakeItemHandler implements PacketHandler<S2CTakeItemMessage> {
 
         @Override
-        public void handle(S2CTakeItemMessage packet, BlockableEventLoop<?> workQueue, Player player) {
+        public void handle(S2CTakeItemMessage packet, Player player, Object gameInstance) {
 
             AddEntriesHandler.addPickUpEntry(packet.itemId, packet.amount);
         }
