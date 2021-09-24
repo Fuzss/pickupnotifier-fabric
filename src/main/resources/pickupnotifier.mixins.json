@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_16",
+  "package": "fuzs.pickupnotifier.mixin",
+  "mixins": [
+    "ItemEntityMixin"
+  ],
+  "client": [
+    "client.ClientPacketListenerMixin",
+    "client.accessor.AbstractArrowAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
