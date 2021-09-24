@@ -1,12 +1,11 @@
 package fuzs.pickupnotifier.config.core;
 
-import fuzs.pickupnotifier.PickUpNotifier;
 import com.google.common.collect.Sets;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
+import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import fuzs.pickupnotifier.lib.config.ModConfig;
+import fuzs.pickupnotifier.lib.config.ModConfigEvents;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -19,12 +18,15 @@ public class ConfigManager {
 
     }
 
-    public static void onModConfig(final ModConfigEvent.Reloading evt) {
+    public static void init(String modId) {
 
-        if (evt.getConfig().getModId().equals(PickUpNotifier.MODID)) {
+        ModConfigEvents.RELOADING.register(config -> {
 
-            sync(evt.getConfig().getType());
-        }
+            if (config.getModId().equals(modId)) {
+
+                sync(config.getType());
+            }
+        });
     }
 
     public static void sync() {

@@ -1,7 +1,7 @@
 package fuzs.pickupnotifier.config.core;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.loading.FMLEnvironment;
+import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import fuzs.pickupnotifier.lib.core.FabricEnvironment;
 
 import java.util.function.Supplier;
 
@@ -12,7 +12,7 @@ public class ConfigHolder<C extends AbstractConfig, S extends AbstractConfig> {
 
     public ConfigHolder(Supplier<C> client, Supplier<S> server) {
 
-        this.client = FMLEnvironment.dist.isClient() ? client.get() : null;
+        this.client = FabricEnvironment.isClient() ? client.get() : null;
         this.server = server.get();
     }
 

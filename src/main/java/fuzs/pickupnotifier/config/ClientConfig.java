@@ -5,10 +5,10 @@ import fuzs.pickupnotifier.PickUpNotifier;
 import fuzs.pickupnotifier.client.gui.PositionPreset;
 import fuzs.pickupnotifier.config.core.AbstractConfig;
 import fuzs.pickupnotifier.config.serialization.EntryCollectionBuilder;
+import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Registry;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -84,7 +84,7 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
         @Override
         public void addToBuilder(ForgeConfigSpec.Builder builder) {
 
-            register(builder.comment("Disable specific items or content from whole mods from showing.", EntryCollectionBuilder.CONFIG_STRING).define("Blacklist", Lists.<String>newArrayList()), v -> this.blacklist = new EntryCollectionBuilder<>(ForgeRegistries.ITEMS).buildEntrySet(v));
+            register(builder.comment("Disable specific items or content from whole mods from showing.", EntryCollectionBuilder.CONFIG_STRING).define("Blacklist", Lists.<String>newArrayList()), v -> this.blacklist = new EntryCollectionBuilder<>(Registry.ITEM).buildEntrySet(v));
             register(builder.comment("Combine entries of the same type instead of showing each one individually.").define("Combine Entries", true), v -> this.combineEntries = v);
             register(builder.comment("Amount of ticks each entry will be shown for. Set to 0 to only remove entries when space for new ones is needed.").defineInRange("Display Time", 80, 0, Integer.MAX_VALUE), v -> this.displayTime = v);
             register(builder.comment("Make outdated entries slowly move out of the screen instead of disappearing in place.").define("Move Out Of Screen", true), v -> this.move = v);

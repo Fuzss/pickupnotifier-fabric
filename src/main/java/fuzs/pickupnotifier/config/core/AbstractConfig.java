@@ -1,7 +1,7 @@
 package fuzs.pickupnotifier.config.core;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.config.ModConfig;
+import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import fuzs.pickupnotifier.lib.config.ModConfig;
 
 import java.util.function.Consumer;
 

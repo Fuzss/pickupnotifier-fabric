@@ -2,8 +2,7 @@ package fuzs.pickupnotifier.config.serialization;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import net.minecraftforge.registries.IForgeRegistry;
-import net.minecraftforge.registries.IForgeRegistryEntry;
+import net.minecraft.core.Registry;
 
 import java.util.List;
 import java.util.Map;
@@ -17,7 +16,7 @@ import java.util.stream.Stream;
  * builds a collection for a given type of registry from a list of strings
  * @param <T> content type of collection to build
  */
-public class EntryCollectionBuilder<T extends IForgeRegistryEntry<T>> extends StringEntryReader<T> {
+public class EntryCollectionBuilder<T> extends StringEntryReader<T> {
 
     public static final Function<String, String> CONFIG_STRING_BUILDER = s -> "Format for every entry is \"<namespace>:<path>" + s + "\". Path may use asterisk as wildcard parameter. Tags are not supported.";
     public static final String CONFIG_STRING = CONFIG_STRING_BUILDER.apply("");
@@ -25,7 +24,7 @@ public class EntryCollectionBuilder<T extends IForgeRegistryEntry<T>> extends St
     /**
      * @param registry registry entries the to be created collections contain
      */
-    public EntryCollectionBuilder(IForgeRegistry<T> registry) {
+    public EntryCollectionBuilder(Registry<T> registry) {
 
         super(registry);
     }
