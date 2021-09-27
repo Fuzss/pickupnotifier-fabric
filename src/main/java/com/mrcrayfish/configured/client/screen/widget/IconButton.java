@@ -2,6 +2,7 @@ package com.mrcrayfish.configured.client.screen.widget;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mrcrayfish.configured.Configured;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
@@ -15,7 +16,7 @@ import net.minecraft.util.Mth;
  */
 public class IconButton extends Button
 {
-    public static final ResourceLocation ICONS = new ResourceLocation("configured:textures/gui/icons.png");
+    public static final ResourceLocation ICONS = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
 
     private int u, v;
 

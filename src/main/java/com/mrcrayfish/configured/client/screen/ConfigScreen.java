@@ -6,11 +6,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.*;
+import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.screen.widget.IconButton;
 import com.mrcrayfish.configured.client.util.ScreenUtil;
 import fuzs.pickupnotifier.PickUpNotifier;
@@ -19,11 +16,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.components.AbstractSliderButton;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ContainerObjectSelectionList;
-import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarratedElementType;
@@ -32,27 +25,18 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.locale.Language;
-import net.minecraft.network.chat.ClickEvent;
-import net.minecraft.network.chat.CommonComponents;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -61,9 +45,9 @@ import java.util.stream.Stream;
  * Author: MrCrayfish
  */
 @Environment(EnvType.CLIENT)
-public class ConfigScreen extends Screen
+public abstract class ConfigScreen extends Screen
 {
-    public static final ResourceLocation LOGO_TEXTURE = new ResourceLocation("configured", "textures/gui/logo.png");
+    public static final ResourceLocation LOGO_TEXTURE = new ResourceLocation(Configured.MODID, "textures/gui/logo.png");
 
     public static final Comparator<Entry> COMPARATOR = (o1, o2) -> {
         if(o1 instanceof SubMenu && o2 instanceof SubMenu)
@@ -81,51 +65,114 @@ public class ConfigScreen extends Screen
         return o1.getLabel().compareTo(o2.getLabel());
     };
 
-    private final Screen parent;
+    final Screen lastScreen;
     private final String displayName;
-    private final List<ConfigFileEntry> clientConfigFileEntries;
-    private final List<ConfigFileEntry> commonConfigFileEntries;
     private final ResourceLocation background;
     private ConfigList list;
     private List<Entry> entries;
     private ConfigEditBox activeTextField;
     private ConfigEditBox searchTextField;
-    private Button restoreDefaultsButton;
-    private boolean subMenu = false;
+    Button restoreDefaultsButton;
     private List<? extends FormattedCharSequence> activeTooltip;
-    private final List<Pair<ForgeConfigSpec.ConfigValue<?>, ForgeConfigSpec.ValueSpec>> allConfigValues;
+    List<Pair<ForgeConfigSpec.ConfigValue<?>, ForgeConfigSpec.ValueSpec>> allConfigValues;
 
-    public ConfigScreen(Screen parent, String displayName, ConfigFileEntry entry, ResourceLocation background)
+    private ConfigScreen(Screen lastScreen, String displayName, ResourceLocation background)
     {
         super(new TextComponent(displayName));
-        this.parent = parent;
+        this.lastScreen = lastScreen;
         this.displayName = displayName;
-        this.clientConfigFileEntries = Collections.singletonList(entry);
-        this.commonConfigFileEntries = null;
-        this.subMenu = true;
-        this.allConfigValues = null;
         this.background = background;
     }
 
-    public ConfigScreen(Screen parent, String displayName, @Nullable List<ConfigFileEntry> clientConfigFileEntries, @Nullable List<ConfigFileEntry> commonConfigFileEntries, ResourceLocation background)
-    {
-        super(new TextComponent(displayName));
-        this.parent = parent;
-        this.displayName = displayName;
-        this.clientConfigFileEntries = clientConfigFileEntries;
-        this.commonConfigFileEntries = commonConfigFileEntries;
-        this.allConfigValues = this.gatherAllConfigValues();
-        this.background = background;
+    private static class Sub extends ConfigScreen {
+
+        private final List<Pair<ForgeConfigSpec, UnmodifiableConfig>> entry;
+
+        public Sub(Screen parent, String displayName, Pair<ForgeConfigSpec, UnmodifiableConfig> entry, ResourceLocation background) {
+            super(parent, displayName, background);
+            this.entry = Collections.singletonList(entry);
+            this.allConfigValues = this.gatherAllConfigValues();
+        }
+
+        @Override
+        List<Pair<ForgeConfigSpec, UnmodifiableConfig>> getConfigFileEntries() {
+            return this.entry;
+        }
+
+        @Override
+        List<Entry> constructEntries()
+        {
+            List<Entry> clientEntries = new ArrayList<>();
+            this.entry.forEach(entry -> this.createEntriesFromConfig(entry.getRight(), entry.getLeft(), clientEntries));
+            clientEntries.sort(COMPARATOR);
+            return ImmutableList.copyOf(clientEntries);
+        }
+
+        @Override
+        protected void init() {
+            super.init();
+            this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 29, 200, 20, CommonComponents.GUI_BACK, (button) -> {
+                this.minecraft.setScreen(this.lastScreen);
+            }));
+        }
     }
+
+    public static class Main extends ConfigScreen {
+
+        private final EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries;
+
+        public Main(Screen parent, String displayName, EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries, ResourceLocation background) {
+            super(parent, displayName, background);
+            this.configFileEntries = configFileEntries;
+            this.allConfigValues = this.gatherAllConfigValues();
+        }
+
+        @Override
+        List<Pair<ForgeConfigSpec, UnmodifiableConfig>> getConfigFileEntries() {
+            return this.configFileEntries.values().stream().flatMap(Collection::stream).toList();
+        }
+
+        @Override
+        List<Entry> constructEntries()
+        {
+            List<Entry> entries = new ArrayList<>();
+            this.configFileEntries.forEach((key, value) -> {
+
+                final String typeExtension = key.extension();
+                entries.add(new TitleEntry(new TranslatableComponent("configured.gui.config_title", StringUtils.capitalize(typeExtension)), new TranslatableComponent(String.format("configured.gui.%s_config", typeExtension))));
+                List<Entry> clientEntries = new ArrayList<>();
+                value.forEach(entry -> this.createEntriesFromConfig(entry.getRight(), entry.getLeft(), clientEntries));
+                clientEntries.sort(COMPARATOR);
+                entries.addAll(clientEntries);
+            });
+            return ImmutableList.copyOf(entries);
+        }
+
+        @Override
+        protected void init() {
+            super.init();
+            this.addRenderableWidget(new Button(this.width / 2 - 155 + 160, this.height - 29, 150, 20, CommonComponents.GUI_DONE, (button) -> {
+                this.getConfigFileEntries().forEach(entry -> entry.getLeft().save());
+                this.minecraft.setScreen(this.lastScreen);
+            }));
+            this.restoreDefaultsButton = this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, new TranslatableComponent("configured.gui.restore_defaults"), (button) -> {
+                ConfirmationScreen confirmScreen = this.makeConfirmationScreen();
+                this.minecraft.setScreen(confirmScreen);
+            }));
+            // Call during init to avoid the button flashing active
+            this.updateRestoreDefaultButton();
+        }
+    }
+
+    abstract List<Pair<ForgeConfigSpec, UnmodifiableConfig>> getConfigFileEntries();
 
     /**
      * Gathers all the config values with a deep search. Used for resetting defaults
      */
-    private List<Pair<ForgeConfigSpec.ConfigValue<?>, ForgeConfigSpec.ValueSpec>> gatherAllConfigValues()
+    List<Pair<ForgeConfigSpec.ConfigValue<?>, ForgeConfigSpec.ValueSpec>> gatherAllConfigValues()
     {
         List<Pair<ForgeConfigSpec.ConfigValue<?>, ForgeConfigSpec.ValueSpec>> values = new ArrayList<>();
-        if(this.clientConfigFileEntries != null) this.clientConfigFileEntries.forEach(entry -> this.gatherValuesFromConfig(entry.config, entry.spec, values));
-        if(this.commonConfigFileEntries != null) this.commonConfigFileEntries.forEach(entry -> this.gatherValuesFromConfig(entry.config, entry.spec, values));
+        this.getConfigFileEntries().forEach(entry -> this.gatherValuesFromConfig(entry.getRight(), entry.getLeft(), values));
         return ImmutableList.copyOf(values);
     }
 
@@ -141,9 +188,8 @@ public class ConfigScreen extends Screen
             {
                 this.gatherValuesFromConfig((UnmodifiableConfig) o, spec, values);
             }
-            else if(o instanceof ForgeConfigSpec.ConfigValue<?>)
+            else if(o instanceof ForgeConfigSpec.ConfigValue<?> configValue)
             {
-                ForgeConfigSpec.ConfigValue<?> configValue = (ForgeConfigSpec.ConfigValue<?>) o;
                 ForgeConfigSpec.ValueSpec valueSpec = spec.getRaw(configValue.getPath());
                 values.add(Pair.of(configValue, valueSpec));
             }
@@ -153,27 +199,7 @@ public class ConfigScreen extends Screen
     /**
      * Gathers the entries for each config spec to be later added to the option list
      */
-    private void constructEntries()
-    {
-        List<Entry> entries = new ArrayList<>();
-        if(this.clientConfigFileEntries != null)
-        {
-            if(!this.subMenu) entries.add(new TitleEntry("Client Configuration"));
-            List<Entry> clientEntries = new ArrayList<>();
-            this.clientConfigFileEntries.forEach(entry -> this.createEntriesFromConfig(entry.config, entry.spec, clientEntries));
-            clientEntries.sort(COMPARATOR);
-            entries.addAll(clientEntries);
-        }
-        if(this.commonConfigFileEntries != null)
-        {
-            entries.add(new TitleEntry("Common Configuration"));
-            List<Entry> commonEntries = new ArrayList<>();
-            this.commonConfigFileEntries.forEach(entry -> this.createEntriesFromConfig(entry.config, entry.spec, commonEntries));
-            commonEntries.sort(COMPARATOR);
-            entries.addAll(commonEntries);
-        }
-        this.entries = ImmutableList.copyOf(entries);
-    }
+    abstract List<Entry> constructEntries();
 
     /**
      * Scans the given unmodifiable config and creates an entry for each scanned
@@ -183,7 +209,8 @@ public class ConfigScreen extends Screen
      * @param spec    the spec of config
      * @param entries the list to add the entries to
      */
-    private void createEntriesFromConfig(UnmodifiableConfig values, ForgeConfigSpec spec, List<Entry> entries)
+    @SuppressWarnings("unchecked")
+    void createEntriesFromConfig(UnmodifiableConfig values, ForgeConfigSpec spec, List<Entry> entries)
     {
         values.valueMap().forEach((s, o) ->
         {
@@ -191,9 +218,8 @@ public class ConfigScreen extends Screen
             {
                 entries.add(new SubMenu(s, spec, (AbstractConfig) o));
             }
-            else if(o instanceof ForgeConfigSpec.ConfigValue<?>)
+            else if(o instanceof ForgeConfigSpec.ConfigValue<?> configValue)
             {
-                ForgeConfigSpec.ConfigValue<?> configValue = (ForgeConfigSpec.ConfigValue<?>) o;
                 ForgeConfigSpec.ValueSpec valueSpec = spec.getRaw(configValue.getPath());
                 Object value = configValue.get();
                 if(value instanceof Boolean)
@@ -214,7 +240,7 @@ public class ConfigScreen extends Screen
                 }
                 else if(value instanceof Enum)
                 {
-                    entries.add(new EnumEntry((ForgeConfigSpec.ConfigValue<Enum>) configValue, valueSpec));
+                    entries.add(new EnumEntry((ForgeConfigSpec.ConfigValue<Enum<?>>) configValue, valueSpec));
                 }
                 else if(value instanceof String)
                 {
@@ -235,7 +261,7 @@ public class ConfigScreen extends Screen
     @Override
     protected void init()
     {
-        this.constructEntries();
+        this.entries = this.constructEntries();
 
         this.list = new ConfigList(this.entries);
         this.addWidget(this.list);
@@ -252,41 +278,26 @@ public class ConfigScreen extends Screen
             }
         });
         this.addWidget(this.searchTextField);
+    }
 
-        if(this.subMenu)
-        {
-            this.addRenderableWidget(new Button(this.width / 2 - 75, this.height - 29, 150, 20, CommonComponents.GUI_BACK, (button) -> {
-                this.minecraft.setScreen(this.parent);
-            }));
-        }
-        else
-        {
-            this.addRenderableWidget(new Button(this.width / 2 - 155 + 160, this.height - 29, 150, 20, CommonComponents.GUI_DONE, (button) -> {
-                if(this.clientConfigFileEntries != null) this.clientConfigFileEntries.forEach(entry -> entry.spec.save());
-                if(this.commonConfigFileEntries != null) this.commonConfigFileEntries.forEach(entry -> entry.spec.save());
-                this.minecraft.setScreen(this.parent);
-            }));
-            this.restoreDefaultsButton = this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, new TranslatableComponent("configured.gui.restore_defaults"), (button) -> {
-                ConfirmationScreen confirmScreen = new ConfirmationScreen(this, new TranslatableComponent("configured.gui.restore_message"), result -> {
-                    if(!result || this.allConfigValues == null)
-                        return;
-                    // Resets all config values
-                    this.allConfigValues.forEach(pair -> {
-                        ForgeConfigSpec.ConfigValue configValue = pair.getLeft();
-                        ForgeConfigSpec.ValueSpec valueSpec = pair.getRight();
-                        configValue.set(valueSpec.getDefault());
-                    });
-                    // Updates the current entries to process UI changes
-                    this.entries.stream().filter(entry -> entry instanceof ConfigEntry).forEach(entry -> {
-                        ((ConfigEntry) entry).onResetValue();
-                    });
-                });
-                confirmScreen.setBackground(this.background);
-                this.minecraft.setScreen(confirmScreen);
-            }));
-            // Call during init to avoid the button flashing active
-            this.updateRestoreDefaultButton();
-        }
+    @NotNull
+    ConfirmationScreen makeConfirmationScreen() {
+        ConfirmationScreen confirmScreen = new ConfirmationScreen(this, new TranslatableComponent("configured.gui.restore_message"), result -> {
+            if(!result || this.allConfigValues == null)
+                return;
+            // Resets all config values
+            this.allConfigValues.forEach(pair -> {
+                ForgeConfigSpec.ConfigValue configValue = pair.getLeft();
+                ForgeConfigSpec.ValueSpec valueSpec = pair.getRight();
+                configValue.set(valueSpec.getDefault());
+            });
+            // Updates the current entries to process UI changes
+            this.entries.stream().filter(entry -> entry instanceof ConfigEntry).forEach(entry -> {
+                ((ConfigEntry) entry).onResetValue();
+            });
+        });
+        confirmScreen.setBackground(this.background);
+        return confirmScreen;
     }
 
     @Override
@@ -299,12 +310,17 @@ public class ConfigScreen extends Screen
      * Updates the active state of the restore default button. It will only be active if values are
      * different from their default.
      */
-    private void updateRestoreDefaultButton()
+    void updateRestoreDefaultButton()
     {
         if(this.allConfigValues != null && this.restoreDefaultsButton != null)
         {
             this.restoreDefaultsButton.active = this.allConfigValues.stream().anyMatch(pair -> !pair.getLeft().get().equals(pair.getRight().getDefault()));
         }
+    }
+
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(this.lastScreen);
     }
 
     @Override
@@ -377,6 +393,15 @@ public class ConfigScreen extends Screen
         }
 
         @Override
+        public void render(PoseStack poseStack, int x, int top, int left, int width, int p_230432_6_, int mouseX, int mouseY, boolean hovered, float partialTicks) {
+
+            if(this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67)
+            {
+                ConfigScreen.this.setActiveTooltip(this.tooltip);
+            }
+        }
+
+        @Override
         public List<? extends NarratableEntry> narratables()
         {
             return ImmutableList.of(new NarratableEntry()
@@ -398,9 +423,10 @@ public class ConfigScreen extends Screen
 
     public class TitleEntry extends Entry
     {
-        public TitleEntry(String title)
+        public TitleEntry(Component title, Component description)
         {
-            super(title);
+            super(title.getString());
+            this.tooltip = this.makeTooltip(description);
         }
 
         @Override
@@ -412,8 +438,16 @@ public class ConfigScreen extends Screen
         @Override
         public void render(PoseStack poseStack, int x, int top, int left, int width, int p_230432_6_, int p_230432_7_, int p_230432_8_, boolean p_230432_9_, float p_230432_10_)
         {
+            super.render(poseStack, x, top, left, width, p_230432_6_, p_230432_7_, p_230432_8_, p_230432_9_, p_230432_10_);
             Component title = new TextComponent(this.label).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.YELLOW);
             Screen.drawCenteredString(poseStack, ConfigScreen.this.minecraft.font, title, left + width / 2, top + 5, 16777215);
+        }
+
+        private List<FormattedCharSequence> makeTooltip(Component description)
+        {
+            Font font = ConfigScreen.this.minecraft.font;
+            List<FormattedText> lines = font.getSplitter().splitLines(description, 200, Style.EMPTY);
+            return Language.getInstance().getVisualOrder(lines);
         }
     }
 
@@ -426,7 +460,7 @@ public class ConfigScreen extends Screen
             super(createLabel(label));
             this.button = new Button(10, 5, 44, 20, new TextComponent(this.getLabel()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.WHITE), onPress -> {
                 String newTitle = ConfigScreen.this.displayName + " > " + this.getLabel();
-                ConfigScreen.this.minecraft.setScreen(new ConfigScreen(ConfigScreen.this, newTitle, new ConfigFileEntry(spec, values), background));
+                ConfigScreen.this.minecraft.setScreen(new Sub(ConfigScreen.this, newTitle, Pair.of(spec, values), background));
             });
         }
 
@@ -439,6 +473,7 @@ public class ConfigScreen extends Screen
         @Override
         public void render(PoseStack poseStack, int x, int top, int left, int width, int height, int mouseX, int mouseY, boolean selected, float partialTicks)
         {
+            super.render(poseStack, x, top, left, width, height, mouseX, mouseY, selected, partialTicks);
             this.button.x = left - 1;
             this.button.y = top;
             this.button.setWidth(width);
@@ -507,6 +542,7 @@ public class ConfigScreen extends Screen
         @Override
         public void render(PoseStack poseStack, int x, int top, int left, int width, int p_230432_6_, int mouseX, int mouseY, boolean hovered, float partialTicks)
         {
+            super.render(poseStack, x, top, left, width, p_230432_6_, mouseX, mouseY, hovered, partialTicks);
             this.resetButton.active = !this.configValue.get().equals(this.valueSpec.getDefault());
 
             Component title = new TextComponent(this.label);
@@ -518,11 +554,6 @@ public class ConfigScreen extends Screen
             else
             {
                 ConfigScreen.this.minecraft.font.drawShadow(poseStack, title, left, top + 6, 0xFFFFFF);
-            }
-
-            if(this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67)
-            {
-                ConfigScreen.this.setActiveTooltip(this.tooltip);
             }
 
             this.resetButton.x = left + width - 21;
@@ -658,7 +689,7 @@ public class ConfigScreen extends Screen
             int scrollBarEnd = scrollBarStart + 6;
 
             RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-            RenderSystem.setShaderTexture(0, background);
+            RenderSystem.setShaderTexture(0, ConfigScreen.this.background);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
             Tesselator tesselator = Tesselator.getInstance();
@@ -751,7 +782,7 @@ public class ConfigScreen extends Screen
     @Environment(EnvType.CLIENT)
     public abstract class NumberEntry<T extends ForgeConfigSpec.ConfigValue> extends ConfigEntry<T>
     {
-        private ConfigEditBox textField;
+        private final ConfigEditBox textField;
 
         public NumberEntry(T configValue, ForgeConfigSpec.ValueSpec valueSpec, Function<String, Number> parser)
         {
@@ -907,21 +938,20 @@ public class ConfigScreen extends Screen
     }
 
     @Environment(EnvType.CLIENT)
-    public class EnumEntry extends ConfigEntry<ForgeConfigSpec.ConfigValue<Enum>>
+    public class EnumEntry extends ConfigEntry<ForgeConfigSpec.ConfigValue<Enum<?>>>
     {
         private final Button button;
 
-        public EnumEntry(ForgeConfigSpec.ConfigValue<Enum> configValue, ForgeConfigSpec.ValueSpec valueSpec)
+        public EnumEntry(ForgeConfigSpec.ConfigValue<Enum<?>> configValue, ForgeConfigSpec.ValueSpec valueSpec)
         {
             super(configValue, valueSpec);
             this.button = new Button(10, 5, 44, 20, new TextComponent(configValue.get().name()), (button) -> {
                 Object o = configValue.get();
-                if(o instanceof Enum)
+                if(o != null)
                 {
-                    Enum e = (Enum) o;
+                    Enum<?> e = (Enum<?>) o;
                     Object[] values = Stream.of(e.getDeclaringClass().getEnumConstants()).filter(valueSpec::test).toArray();
-                    e = (Enum) values[(e.ordinal() + 1) % values.length];
-                    //noinspection unchecked
+                    e = (Enum<?>) values[(e.ordinal() + 1) % values.length];
                     configValue.set(e);
                     button.setMessage(new TextComponent(e.name()));
                 }
@@ -1050,17 +1080,5 @@ public class ConfigScreen extends Screen
         builder.vertex(this.width, 0.0D, 0.0D).uv(this.width / size, vOffset).color(64, 64, 64, 255).endVertex();
         builder.vertex(0.0D, 0.0D, 0.0D).uv(0.0F, vOffset).color(64, 64, 64, 255).endVertex();
         tesselator.end();
-    }
-
-    public static class ConfigFileEntry
-    {
-        private ForgeConfigSpec spec;
-        private UnmodifiableConfig config;
-
-        public ConfigFileEntry(ForgeConfigSpec spec, UnmodifiableConfig config)
-        {
-            this.spec = spec;
-            this.config = config;
-        }
     }
 }
