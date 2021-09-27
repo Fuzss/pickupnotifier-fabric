@@ -18,9 +18,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraftforge.common.ForgeConfigSpec;
+import org.apache.commons.lang3.mutable.MutableObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -29,18 +31,20 @@ import java.util.stream.Collectors;
 public class EditStringListScreen extends Screen
 {
     private final Screen parent;
-    private final List<StringHolder> values = new ArrayList<>();
-    private final ForgeConfigSpec.ConfigValue<List<?>> listValue;
+    private final List<MutableObject<String>> values = new ArrayList<>();
+    private final List<?> listValue;
     private final ForgeConfigSpec.ValueSpec valueSpec;
+    private final Consumer<List<?>> onSave;
     private StringList list;
 
-    public EditStringListScreen(Screen parent, Component titleIn, ForgeConfigSpec.ConfigValue<List<?>> listValue, ForgeConfigSpec.ValueSpec valueSpec)
+    public EditStringListScreen(Screen parent, Component titleIn, List<?> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<?>> onSave)
     {
         super(titleIn);
         this.parent = parent;
         this.listValue = listValue;
         this.valueSpec = valueSpec;
-        this.values.addAll(listValue.get().stream().map(o -> new StringHolder(o.toString())).collect(Collectors.toList()));
+        this.onSave = onSave;
+        this.values.addAll(listValue.stream().map(o -> new MutableObject<>(o.toString())).collect(Collectors.toList()));
     }
 
     @Override
@@ -49,14 +53,14 @@ public class EditStringListScreen extends Screen
         this.list = new StringList();
         this.addWidget(this.list);
         this.addRenderableWidget(new Button(this.width / 2 - 140, this.height - 29, 90, 20, CommonComponents.GUI_DONE, (button) -> {
-            List<String> newValues = this.values.stream().map(StringHolder::getValue).collect(Collectors.toList());
+            List<String> newValues = this.values.stream().map(MutableObject::getValue).collect(Collectors.toList());
             this.valueSpec.correct(newValues);
-            this.listValue.set(newValues);
+            this.onSave.accept(newValues);
             this.minecraft.setScreen(this.parent);
         }));
         this.addRenderableWidget(new Button(this.width / 2 - 45, this.height - 29, 90, 20, new TranslatableComponent("configured.gui.add_value"), (button) -> {
             this.minecraft.setScreen(new EditStringScreen(EditStringListScreen.this, new TranslatableComponent("configured.gui.edit_value"), "", o -> true, s -> {
-                StringHolder holder = new StringHolder(s);
+                MutableObject<String> holder = new MutableObject<>(s);
                 this.values.add(holder);
                 this.list.addEntry(new StringEntry(this.list, holder));
             }));
@@ -129,19 +133,17 @@ public class EditStringListScreen extends Screen
 
     public class StringEntry extends ContainerObjectSelectionList.Entry<StringEntry>
     {
-        private StringHolder holder;
+        private final MutableObject<String> holder;
         private final StringList list;
         private final Button editButton;
         private final Button deleteButton;
 
-        public StringEntry(StringList list, StringHolder holder)
+        public StringEntry(StringList list, MutableObject<String> holder)
         {
             this.list = list;
             this.holder = holder;
             this.editButton = new Button(0, 0, 42, 20, new TextComponent("Edit"), onPress -> {
-                EditStringListScreen.this.minecraft.setScreen(new EditStringScreen(EditStringListScreen.this, new TranslatableComponent("configured.gui.edit_value"), this.holder.getValue(), o -> true, s -> {
-                    this.holder.setValue(s);
-                }));
+                EditStringListScreen.this.minecraft.setScreen(new EditStringScreen(EditStringListScreen.this, new TranslatableComponent("configured.gui.edit_value"), this.holder.getValue(), o -> true, this.holder::setValue));
             });
             Button.OnTooltip tooltip = (button, matrixStack, mouseX, mouseY) -> {
                 if(button.active && button.isHovered()) {
@@ -189,26 +191,6 @@ public class EditStringListScreen extends Screen
                     output.add(NarratedElementType.TITLE, StringEntry.this.holder.getValue());
                 }
             }, StringEntry.this.editButton, StringEntry.this.deleteButton);
-        }
-    }
-
-    public static class StringHolder
-    {
-        private String value;
-
-        public StringHolder(String value)
-        {
-            this.value = value;
-        }
-
-        public String getValue()
-        {
-            return this.value;
-        }
-
-        public void setValue(String value)
-        {
-            this.value = value;
         }
     }
 }

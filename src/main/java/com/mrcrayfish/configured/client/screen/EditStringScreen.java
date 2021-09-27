@@ -10,6 +10,7 @@ import net.minecraft.network.chat.TextComponent;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Author: MrCrayfish
@@ -17,12 +18,12 @@ import java.util.function.Function;
 public class EditStringScreen extends Screen
 {
     private final Screen parent;
-    private EditBox textField;
-    private String value;
-    private final Function<Object, Boolean> validator;
+    private final String value;
+    private final Predicate<Object> validator;
     private final Consumer<String> onSave;
+    private EditBox textField;
 
-    protected EditStringScreen(Screen parent, Component component, String value, Function<Object, Boolean> validator, Consumer<String> onSave)
+    protected EditStringScreen(Screen parent, Component component, String value, Predicate<Object> validator, Consumer<String> onSave)
     {
         super(component);
         this.parent = parent;
@@ -41,7 +42,7 @@ public class EditStringScreen extends Screen
 
         this.addRenderableWidget(new Button(this.width / 2 - 1 - 150, this.height / 2 + 3, 148, 20, CommonComponents.GUI_DONE, (button) -> {
             String text = this.textField.getValue();
-            if(this.validator.apply(text)) {
+            if(this.validator.test(text)) {
                 this.onSave.accept(text);
                 this.minecraft.setScreen(this.parent);
             }

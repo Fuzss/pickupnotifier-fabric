@@ -1,5 +1,6 @@
 {
     "configured.gui.search": "Search...",
+    "configured.gui.search_all": "Search everywhere...",
     "configured.gui.restore_defaults": "Restore Defaults",
     "configured.gui.edit": "Edit",
     "configured.gui.edit_value": "Edit Value",
