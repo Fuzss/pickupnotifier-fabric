@@ -11,6 +11,7 @@ import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.screen.widget.IconButton;
 import com.mrcrayfish.configured.client.util.ScreenUtil;
 import fuzs.pickupnotifier.PickUpNotifier;
+import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import joptsimple.internal.Strings;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -118,11 +119,6 @@ public abstract class ConfigScreen extends Screen
                 this.minecraft.setScreen(this.lastScreen);
             }));
         }
-
-        @Override
-        List<Entry> getSearchEntries() {
-            return this.screenEntries;
-        }
     }
 
     public static class Main extends ConfigScreen {
@@ -162,17 +158,21 @@ public abstract class ConfigScreen extends Screen
                 this.configFileEntries.values().stream().flatMap(Collection::stream).map(Pair::getLeft).forEach(ForgeConfigSpec::save);
                 this.minecraft.setScreen(this.lastScreen);
             }));
-            this.restoreDefaultsButton = this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, new TranslatableComponent("configured.gui.restore_defaults"), (button) -> {
-                Screen confirmScreen = this.makeConfirmationScreen();
+            this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, CommonComponents.GUI_CANCEL, button -> {
+                Screen confirmScreen;
+                if (this.allEntries.stream().allMatch(Entry::mayDiscardChanges)) {
+                    confirmScreen = this.lastScreen;
+                } else {
+                    confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.discard"), result -> {
+                        if (result) {
+                            this.minecraft.setScreen(this.lastScreen);
+                        } else {
+                            this.minecraft.setScreen(this);
+                        }
+                    });
+                }
                 this.minecraft.setScreen(confirmScreen);
             }));
-            // Call during init to avoid the button flashing active
-            this.updateRestoreDefaultButton();
-        }
-
-        @Override
-        List<Entry> getSearchEntries() {
-            return this.allEntries;
         }
     }
 
@@ -244,11 +244,11 @@ public abstract class ConfigScreen extends Screen
         this.list = new ConfigList(this.screenEntries);
         this.addWidget(this.list);
 
-        this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 110, 22, 220, 20, new TranslatableComponent("configured.gui.search"));
+        this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 109, 22, 218, 20);
         this.searchTextField.setResponder(query -> {
             if(!query.isEmpty())
             {
-                this.list.replaceEntries(this.getSearchEntries().stream().filter(entry -> entry.containsQuery(query)).collect(Collectors.toList()));
+                this.list.replaceEntries(this.allEntries.stream().filter(entry -> entry.containsQuery(query)).collect(Collectors.toList()));
             }
             else
             {
@@ -256,22 +256,25 @@ public abstract class ConfigScreen extends Screen
             }
         });
         this.addWidget(this.searchTextField);
+
+        this.restoreDefaultsButton = this.addRenderableWidget(new IconButton(this.width / 2 + 112, 22, 20, 20, 0, 0, (Button button, PoseStack poseStack, int i, int j) -> {}, button -> {
+            Screen confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.restore"), result -> {
+                if (result) {// Resets all config values
+                    this.allEntries.forEach(Entry::resetConfigValue);
+                    // Updates the current entries to process UI changes
+                    this.screenEntries.forEach(Entry::resetConfigValue);
+                }
+                this.minecraft.setScreen(this);
+            });
+            this.minecraft.setScreen(confirmScreen);
+        }));
+        // Call during init to avoid the button flashing active
+        this.updateRestoreDefaultButton();
     }
 
-    abstract List<Entry> getSearchEntries();
-
     @NotNull
-    ConfirmScreen makeConfirmationScreen() {
-        return new ConfirmScreen(result -> {
-            if (result) {// Resets all config values
-                ConfigScreen.this.allEntries.forEach(Entry::resetConfigValue);
-                // Updates the current entries to process UI changes
-                ConfigScreen.this.screenEntries.stream().filter(entry -> entry instanceof ConfigEntry).forEach(entry -> {
-                    ((ConfigEntry<?>) entry).resetConfigValue();
-                });
-            }
-            ConfigScreen.this.minecraft.setScreen(ConfigScreen.this);
-        }, new TranslatableComponent("configured.gui.restore_message"), TextComponent.EMPTY) {
+    ConfirmScreen makeConfirmationScreen(Component component, BooleanConsumer booleanConsumer) {
+        return new ConfirmScreen(booleanConsumer, component, TextComponent.EMPTY) {
 
             @Override
             public void renderDirtBackground(int vOffset)
@@ -355,13 +358,6 @@ public abstract class ConfigScreen extends Screen
             this.handleComponentClicked(style);
             return true;
         }
-//        if (this.activeTextField != null) {
-//            if (this.activeTextField.mouseClicked(mouseX, mouseY, button)) {
-//                return true;
-//            } else {
-//                this.activeTextField.setFocus(false);
-//            }
-//        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -421,11 +417,15 @@ public abstract class ConfigScreen extends Screen
         }
 
         public boolean containsQuery(String query) {
-            return this.label.toLowerCase(Locale.ROOT).contains(query);
+            return this.label.toLowerCase(Locale.ROOT).trim().contains(query);
         }
 
         public boolean mayResetValue() {
             return false;
+        }
+
+        public boolean mayDiscardChanges() {
+            return true;
         }
 
         public void resetConfigValue() {
@@ -553,6 +553,11 @@ public abstract class ConfigScreen extends Screen
         @Override
         public boolean mayResetValue() {
             return !this.currentValue.equals(this.valueSpec.getDefault());
+        }
+
+        @Override
+        public boolean mayDiscardChanges() {
+            return this.configValue.get().equals(this.currentValue);
         }
 
         @Override
@@ -819,7 +824,7 @@ public abstract class ConfigScreen extends Screen
         public NumberEntry(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec, Function<String, Number> parser)
         {
             super(configValue, valueSpec);
-            this.textField = new ConfigEditBox(ConfigScreen.this.font, 0, 0, 42, 18, TextComponent.EMPTY);
+            this.textField = new ConfigEditBox(ConfigScreen.this.font, 0, 0, 42, 18);
             this.textField.setValue(this.currentValue.toString());
             this.textField.setResponder((s) -> {
                 try
@@ -1018,37 +1023,26 @@ public abstract class ConfigScreen extends Screen
     @Environment(EnvType.CLIENT)
     public class ConfigEditBox extends EditBox
     {
-        private final Component emptyMessage;
-
-        public ConfigEditBox(Font font, int x, int y, int width, int height, Component emptyMessage)
+        public ConfigEditBox(Font font, int x, int y, int width, int height)
         {
             super(font, x, y, width, height, TextComponent.EMPTY);
-            this.emptyMessage = emptyMessage;
         }
 
         @Override
         public void setFocus(boolean focused)
         {
             super.setFocus(focused);
-//            if(focused)
-//            {
-//                if(ConfigScreen.this.activeTextField != null && ConfigScreen.this.activeTextField != this)
-//                {
-//                    ConfigScreen.this.activeTextField.setFocus(false);
-//                    ConfigScreen.this.activeTextField = this;
-//                }
-//                else
-//                {
-//                    ConfigScreen.this.activeTextField = this;
-//                }
-//            }
-        }
-
-        @Override
-        public void renderButton(PoseStack poseStack, int i, int j, float f) {
-            super.renderButton(poseStack, i, j, f);
-            if (this.active && !this.getValue().isEmpty()) {
-                Screen.drawString(poseStack, ConfigScreen.this.minecraft.font, this.emptyMessage, this.x + 4, this.y + 6, 11184810);
+            if(focused)
+            {
+                if(ConfigScreen.this.activeTextField != null && ConfigScreen.this.activeTextField != this)
+                {
+                    ConfigScreen.this.activeTextField.setFocus(false);
+                    ConfigScreen.this.activeTextField = this;
+                }
+                else
+                {
+                    ConfigScreen.this.activeTextField = this;
+                }
             }
         }
     }
