@@ -1,9 +1,9 @@
 package fuzs.pickupnotifier.config.core;
 
 import com.google.common.collect.Sets;
-import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
-import fuzs.pickupnotifier.lib.config.ModConfig;
-import fuzs.pickupnotifier.lib.config.ModConfigEvents;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.config.ModConfigEvents;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;

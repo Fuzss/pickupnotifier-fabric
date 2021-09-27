@@ -5,7 +5,7 @@ import fuzs.pickupnotifier.PickUpNotifier;
 import fuzs.pickupnotifier.client.gui.PositionPreset;
 import fuzs.pickupnotifier.config.core.AbstractConfig;
 import fuzs.pickupnotifier.config.serialization.EntryCollectionBuilder;
-import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Registry;
 import net.minecraft.world.item.Item;

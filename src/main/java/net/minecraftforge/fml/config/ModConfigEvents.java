@@ -1,4 +1,4 @@
-package fuzs.pickupnotifier.lib.config;
+package net.minecraftforge.fml.config;
 
 import net.fabricmc.fabric.api.event.Event;
 import net.fabricmc.fabric.api.event.EventFactory;

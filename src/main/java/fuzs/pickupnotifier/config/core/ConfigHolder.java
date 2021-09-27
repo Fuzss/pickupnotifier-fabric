@@ -1,6 +1,6 @@
 package fuzs.pickupnotifier.config.core;
 
-import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 import fuzs.pickupnotifier.lib.core.FabricEnvironment;
 
 import java.util.function.Supplier;

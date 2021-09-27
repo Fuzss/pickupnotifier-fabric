@@ -1,4 +1,4 @@
-package fuzs.pickupnotifier.lib.config;
+package net.minecraftforge.fml.config;
 
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ConfigTracker {
     private static final Logger LOGGER = LogManager.getLogger();
-    static final Marker CONFIG = MarkerManager.getMarker("CONFIG");
+    public static final Marker CONFIG = MarkerManager.getMarker("CONFIG");
     public static final ConfigTracker INSTANCE = new ConfigTracker();
     private final ConcurrentHashMap<String, ModConfig> fileMap;
     private final EnumMap<ModConfig.Type, Set<ModConfig>> configSets;

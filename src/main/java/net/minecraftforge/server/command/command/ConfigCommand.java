@@ -1,10 +1,10 @@
-package fuzs.pickupnotifier.lib.config.command;
+package net.minecraftforge.server.command.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import fuzs.pickupnotifier.lib.config.ConfigTracker;
-import fuzs.pickupnotifier.lib.config.ModConfig;
+import net.minecraftforge.fml.config.ConfigTracker;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.TextComponent;

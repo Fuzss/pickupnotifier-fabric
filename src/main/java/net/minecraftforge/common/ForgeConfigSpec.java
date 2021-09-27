@@ -1,4 +1,4 @@
-package fuzs.pickupnotifier.lib.config;
+package net.minecraftforge.common;
 
 import static com.electronwill.nightconfig.core.ConfigSpec.CorrectionAction.ADD;
 import static com.electronwill.nightconfig.core.ConfigSpec.CorrectionAction.REMOVE;
@@ -21,6 +21,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import fuzs.pickupnotifier.lib.core.FabricEnvironment;
+import net.minecraftforge.fml.config.ConfigTracker;
+import net.minecraftforge.fml.config.IConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 
@@ -45,6 +47,7 @@ import org.jetbrains.annotations.Nullable;
  * Like {@link com.electronwill.nightconfig.core.ConfigSpec} except in builder format, and extended to accept comments, language keys,
  * and other things Forge configs would find useful.
  */
+@SuppressWarnings("ALL")
 public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfig> implements IConfigSpec<ForgeConfigSpec>//TODO: Remove extends and pipe everything through getSpec/getValues?
 {
     private Map<List<String>, String> levelComments = new HashMap<>();

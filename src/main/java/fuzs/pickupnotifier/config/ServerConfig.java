@@ -1,7 +1,7 @@
 package fuzs.pickupnotifier.config;
 
 import fuzs.pickupnotifier.config.core.AbstractConfig;
-import fuzs.pickupnotifier.lib.config.ForgeConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 public class ServerConfig extends AbstractConfig.AbstractServerConfig {
 

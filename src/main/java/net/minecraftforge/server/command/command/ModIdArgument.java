@@ -1,4 +1,4 @@
-package fuzs.pickupnotifier.lib.config.command;
+package net.minecraftforge.server.command.command;
 
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.arguments.ArgumentType;

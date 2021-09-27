@@ -1,4 +1,4 @@
-package fuzs.pickupnotifier.lib.config;
+package net.minecraftforge.fml.config;
 
 import com.electronwill.nightconfig.core.ConfigFormat;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
