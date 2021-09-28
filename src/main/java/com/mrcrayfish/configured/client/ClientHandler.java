@@ -8,6 +8,7 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ConfigTracker;
@@ -52,7 +53,7 @@ public class ClientHandler {
         });
 
         if(!modConfigTypeSets.isEmpty()) {    // Only add if at least one config exists
-            return screen -> new ConfigScreen.Main(screen, displayName, modConfigTypeSets, optionsBackground);
+            return screen -> new ConfigScreen.Main(screen, new TextComponent(displayName), modConfigTypeSets, optionsBackground);
         }
 
         return screen -> null;

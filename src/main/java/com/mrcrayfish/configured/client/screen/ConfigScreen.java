@@ -51,7 +51,6 @@ public abstract class ConfigScreen extends Screen
     public static final ResourceLocation LOGO_TEXTURE = new ResourceLocation(Configured.MODID, "textures/gui/logo.png");
 
     final Screen lastScreen;
-    private final String displayName;
     private final ResourceLocation background;
     private ConfigList configList;
     private List<EntryUnit> screenEntries;
@@ -59,14 +58,11 @@ public abstract class ConfigScreen extends Screen
     private ConfigEditBox activeTextField;
     private ConfigEditBox searchTextField;
     private List<? extends FormattedCharSequence> activeTooltip;
-    private final Set<Entry> invalidEntries = Sets.newHashSet();
-    Button backButton;
 
-    private ConfigScreen(Screen lastScreen, String displayName, ResourceLocation background, Map<Object, EntryUnit> allEntries)
+    private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, Map<Object, EntryUnit> allEntries)
     {
-        super(new TextComponent(displayName));
+        super(title);
         this.lastScreen = lastScreen;
-        this.displayName = displayName;
         this.background = background;
         this.allEntries = allEntries;
     }
@@ -76,8 +72,8 @@ public abstract class ConfigScreen extends Screen
         private final EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries;
         private Button restoreDefaultsButton;
 
-        public Main(Screen parent, String displayName, EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries, ResourceLocation background) {
-            super(parent, displayName, background, gatherAllUnits(configFileEntries));
+        public Main(Screen parent, Component title, EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries, ResourceLocation background) {
+            super(parent, title, background, gatherAllUnits(configFileEntries));
             this.configFileEntries = configFileEntries;
         }
 
@@ -100,20 +96,13 @@ public abstract class ConfigScreen extends Screen
         @Override
         protected void init() {
             super.init();
-            this.backButton = this.addRenderableWidget(new Button(this.width / 2 + 5, this.height - 29, 150, 20, CommonComponents.GUI_DONE, button -> {
+            this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, button -> {
                 this.allEntries.values().forEach(EntryUnit::saveConfigValue);
                 this.configFileEntries.values().stream().flatMap(Collection::stream).map(Pair::getLeft).forEach(ForgeConfigSpec::save);
                 this.minecraft.setScreen(this.lastScreen);
             }));
-            this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
-
-            final Button.OnTooltip onTooltip = (button, matrixStack, mouseX, mouseY) -> {
-                Font font = this.minecraft.font;
-                List<FormattedText> lines = font.getSplitter().splitLines(new TranslatableComponent("configured.gui.restore"), 200, Style.EMPTY);
-                final List<FormattedCharSequence> formattedCharSequences = Language.getInstance().getVisualOrder(lines);
-                this.setActiveTooltip(formattedCharSequences);
-            };
-            final Button.OnPress onPress = button -> {
+            this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
+            this.restoreDefaultsButton = this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.restore"), button -> {
                 Screen confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.restore_message"), result -> {
                     if (result) {// Resets all config values
                         this.allEntries.values().forEach(EntryUnit::resetCurrentValue);
@@ -123,8 +112,7 @@ public abstract class ConfigScreen extends Screen
                     this.minecraft.setScreen(this);
                 });
                 this.minecraft.setScreen(confirmScreen);
-            };
-            this.restoreDefaultsButton = this.addRenderableWidget(new IconButton(this.width / 2 - 185, this.height - 29, 20, 20, 0, 0, onTooltip, onPress));
+            }));
             // Call during init to avoid the button flashing active
             this.updateRestoreDefaultButton();
         }
@@ -185,8 +173,8 @@ public abstract class ConfigScreen extends Screen
 
         private final List<Pair<ForgeConfigSpec, UnmodifiableConfig>> entry;
 
-        public Sub(Screen parent, String displayName, Pair<ForgeConfigSpec, UnmodifiableConfig> entry, ResourceLocation background, Map<Object, EntryUnit> allEntries) {
-            super(parent, displayName, background, allEntries);
+        public Sub(Screen parent, Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> entry, ResourceLocation background, Map<Object, EntryUnit> allEntries) {
+            super(parent, title, background, allEntries);
             this.entry = Collections.singletonList(entry);
         }
 
@@ -202,7 +190,7 @@ public abstract class ConfigScreen extends Screen
         @Override
         protected void init() {
             super.init();
-            this.backButton = this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 29, 200, 20, CommonComponents.GUI_BACK, button -> {
+            this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 29, 200, 20, CommonComponents.GUI_BACK, button -> {
                 this.minecraft.setScreen(this.lastScreen);
             }));
         }
@@ -214,12 +202,20 @@ public abstract class ConfigScreen extends Screen
     abstract List<EntryUnit> gatherScreenUnits();
 
     @SuppressWarnings("unchecked")
-    Entry makeEntry(EntryUnit entryUnit) {
+    Entry makeEntry(EntryUnit entryUnit, boolean fromSearch) {
 
         if (entryUnit instanceof TitleEntryUnit titleEntryUnit) {
             return new TitleEntry(titleEntryUnit.getTitle(), titleEntryUnit.getDesciption());
         } else if (entryUnit instanceof CategoryEntryUnit categoryEntryUnit) {
-            return new CategoryEntry(categoryEntryUnit.getTitle(), categoryEntryUnit.getSpecValuePair());
+            ConfigScreen lastScreen = this;
+            // when making from search parent screen should always be main screen to avoid unnecessary queuing
+            // proper hierarchy would be nicer, but current implementation doesn't allow for that
+            if (fromSearch) {
+                while (lastScreen.lastScreen instanceof ConfigScreen configScreen) {
+                    lastScreen = configScreen;
+                }
+            }
+            return new CategoryEntry(lastScreen, categoryEntryUnit.getTitle(), categoryEntryUnit.getSpecValuePair());
         } else if (entryUnit instanceof ConfigEntryUnit<?> configEntryUnit) {
 
             final Object currentValue = configEntryUnit.getCurrentValue();
@@ -256,28 +252,13 @@ public abstract class ConfigScreen extends Screen
         return null;
     }
 
-    private void updateDoneButton() {
-        this.backButton.active = this.invalidEntries.isEmpty();
-    }
-
-    void markInvalid(Entry ruleEntry) {
-        this.invalidEntries.add(ruleEntry);
-        this.updateDoneButton();
-    }
-
-    void clearInvalid(Entry ruleEntry) {
-        this.invalidEntries.remove(ruleEntry);
-        this.updateDoneButton();
-    }
-
     @Override
     protected void init()
     {
         super.init();
         this.screenEntries = this.gatherScreenUnits();
-        this.configList = new ConfigList(this.screenEntries.stream().map(this::makeEntry).collect(Collectors.toList()));
+        this.configList = new ConfigList(this.screenEntries.stream().map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, false)).collect(Collectors.toList()));
         this.addWidget(this.configList);
-
         this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 109, 22, 218, 20);
         this.searchTextField.setResponder(this::refreshConfigList);
         this.addWidget(this.searchTextField);
@@ -287,9 +268,9 @@ public abstract class ConfigScreen extends Screen
         if (this.configList != null && this.screenEntries != null) {
             Collection<ConfigScreen.Entry> entries;
             if (!query.isEmpty()) {
-                entries = this.allEntries.values().stream().filter(entry -> entry.containsQuery(query)).map(this::makeEntry).collect(Collectors.toList());
+                entries = this.allEntries.values().stream().filter(entry -> entry.containsQuery(query)).map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, true)).collect(Collectors.toList());
             } else {
-                entries = this.screenEntries.stream().map(this::makeEntry).collect(Collectors.toList());
+                entries = this.screenEntries.stream().map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, false)).collect(Collectors.toList());
             }
             this.configList.replaceEntries(entries);
         }
@@ -408,17 +389,17 @@ public abstract class ConfigScreen extends Screen
 
     abstract class Entry extends ContainerObjectSelectionList.Entry<ConfigScreen.Entry>
     {
-        private final MutableComponent title;
+        private final Component title;
         @Nullable
         final List<? extends FormattedCharSequence> tooltip;
 
-        public Entry(MutableComponent title, List<? extends FormattedCharSequence> tooltip)
+        public Entry(Component title, List<? extends FormattedCharSequence> tooltip)
         {
             this.title = title;
             this.tooltip = tooltip;
         }
 
-        public MutableComponent getTitle()
+        public Component getTitle()
         {
             return this.title;
         }
@@ -460,7 +441,7 @@ public abstract class ConfigScreen extends Screen
 
     public class TitleEntry extends Entry
     {
-        public TitleEntry(MutableComponent title, Component description)
+        public TitleEntry(Component title, Component description)
         {
             super(title, makeTooltip(ConfigScreen.this.minecraft.font, description));
         }
@@ -475,7 +456,7 @@ public abstract class ConfigScreen extends Screen
         public void render(PoseStack poseStack, int x, int top, int left, int width, int p_230432_6_, int p_230432_7_, int p_230432_8_, boolean p_230432_9_, float p_230432_10_)
         {
             super.render(poseStack, x, top, left, width, p_230432_6_, p_230432_7_, p_230432_8_, p_230432_9_, p_230432_10_);
-            Component title = this.getTitle().withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.YELLOW);
+            Component title = new TextComponent("").append(this.getTitle()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.YELLOW);
             Screen.drawCenteredString(poseStack, ConfigScreen.this.minecraft.font, title, left + width / 2, top + 5, 16777215);
         }
     }
@@ -484,12 +465,12 @@ public abstract class ConfigScreen extends Screen
     {
         private final Button button;
 
-        public CategoryEntry(MutableComponent title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair)
+        public CategoryEntry(Screen lastScreen, Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair)
         {
             super(title, null);
-            String newTitle = ConfigScreen.this.displayName + " > " + this.getTitle().getString();
-            final Sub subScreen = new Sub(ConfigScreen.this, newTitle, specValuePair, ConfigScreen.this.background, ConfigScreen.this.allEntries);
-            this.button = new Button(10, 5, 44, 20, this.getTitle().withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.WHITE), onPress -> ConfigScreen.this.minecraft.setScreen(subScreen));
+            Component newTitle = new TextComponent("").append(lastScreen.getTitle()).append(" > ").append(this.getTitle());
+            final Sub subScreen = new Sub(lastScreen, newTitle, specValuePair, ConfigScreen.this.background, ConfigScreen.this.allEntries);
+            this.button = new Button(10, 5, 44, 20, new TextComponent("").append(this.getTitle()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.WHITE), onPress -> ConfigScreen.this.minecraft.setScreen(subScreen));
         }
 
         @Override
@@ -530,7 +511,7 @@ public abstract class ConfigScreen extends Screen
 
     interface EntryUnit extends Comparable<EntryUnit> {
 
-        MutableComponent getTitle();
+        Component getTitle();
 
         default boolean containsQuery(String query) {
             return this.getTitle().getString().toLowerCase(Locale.ROOT).trim().contains(query);
@@ -552,16 +533,16 @@ public abstract class ConfigScreen extends Screen
 
     static class TitleEntryUnit implements EntryUnit {
 
-        private final MutableComponent title;
+        private final Component title;
         private final Component desciption;
 
-        public TitleEntryUnit(MutableComponent title, Component description) {
+        public TitleEntryUnit(Component title, Component description) {
             this.title = title;
             this.desciption = description;
         }
 
         @Override
-        public MutableComponent getTitle() {
+        public Component getTitle() {
             return this.title;
         }
 
@@ -598,16 +579,16 @@ public abstract class ConfigScreen extends Screen
 
     static class CategoryEntryUnit implements EntryUnit {
 
-        private final MutableComponent title;
+        private final Component title;
         private final Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair;
 
-        public CategoryEntryUnit(MutableComponent title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair) {
+        public CategoryEntryUnit(Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair) {
             this.title = title;
             this.specValuePair = specValuePair;
         }
 
         @Override
-        public MutableComponent getTitle() {
+        public Component getTitle() {
             return this.title;
         }
 
@@ -641,7 +622,7 @@ public abstract class ConfigScreen extends Screen
 
         private final ForgeConfigSpec.ConfigValue<T> configValue;
         private final ForgeConfigSpec.ValueSpec valueSpec;
-        private final MutableComponent title;
+        private final Component title;
         private T currentValue;
 
         public ConfigEntryUnit(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
@@ -652,7 +633,7 @@ public abstract class ConfigScreen extends Screen
         }
 
         @Override
-        public MutableComponent getTitle() {
+        public Component getTitle() {
             return this.title;
         }
 
@@ -732,7 +713,7 @@ public abstract class ConfigScreen extends Screen
     {
         final List<AbstractWidget> children = Lists.newArrayList();
         private final ConfigEntryUnit<T> configEntryUnit;
-        private final Button resetButton;
+        final Button resetButton;
 
         public ConfigEntry(ConfigEntryUnit<T> configEntryUnit)
         {
@@ -766,7 +747,7 @@ public abstract class ConfigScreen extends Screen
         {
             super.render(poseStack, x, top, left, width, p_230432_6_, mouseX, mouseY, hovered, partialTicks);
 
-            final MutableComponent title = this.getTitle();
+            final Component title = this.getTitle();
             if(ConfigScreen.this.minecraft.font.width(title) > width - 75)
             {
                 String trimmed = ConfigScreen.this.minecraft.font.substrByWidth(title, width - 75).getString() + "...";
@@ -800,7 +781,7 @@ public abstract class ConfigScreen extends Screen
                     String comment = ConfigEntry.this.configEntryUnit.getValueSpec().getComment();
                     if(comment != null)
                     {
-                        output.add(NarratedElementType.TITLE, ConfigEntry.this.getTitle().append(", " + comment));
+                        output.add(NarratedElementType.TITLE, new TextComponent("").append(ConfigEntry.this.getTitle()).append(", " + comment));
                     }
                     else
                     {
@@ -841,11 +822,10 @@ public abstract class ConfigScreen extends Screen
                     this.textField.setTextColor(14737632);
                     configEntryUnit.setCurrentValue(number);
                     this.onConfigValueChanged(number, false);
-                    ConfigScreen.this.clearInvalid(this);
                 } else {
                     this.textField.setTextColor(16711680);
-                    super.onConfigValueChanged(null, false);
-                    ConfigScreen.this.markInvalid(this);
+                    // provides an easy way to make text field usable again
+                    this.resetButton.active = true;
                 }
             });
             this.children.add(this.textField);
@@ -1238,7 +1218,7 @@ public abstract class ConfigScreen extends Screen
      * @param valueSpec   the associated value spec
      * @return a readable label string
      */
-    private static MutableComponent createLabel(ForgeConfigSpec.ConfigValue<?> configValue, ForgeConfigSpec.ValueSpec valueSpec)
+    private static Component createLabel(ForgeConfigSpec.ConfigValue<?> configValue, ForgeConfigSpec.ValueSpec valueSpec)
     {
         if(valueSpec.getTranslationKey() != null && I18n.exists(valueSpec.getTranslationKey()))
         {
@@ -1255,7 +1235,7 @@ public abstract class ConfigScreen extends Screen
      * @param input the config value name
      * @return a readable label string
      */
-    private static MutableComponent formatLabel(String input)
+    private static Component formatLabel(String input)
     {
         if (input == null || input.isEmpty()) {
             return new TextComponent("");
