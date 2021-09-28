@@ -3,6 +3,7 @@ package com.mrcrayfish.configured.client.screen;
 import com.electronwill.nightconfig.core.AbstractConfig;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -158,21 +159,24 @@ public abstract class ConfigScreen extends Screen
                 this.configFileEntries.values().stream().flatMap(Collection::stream).map(Pair::getLeft).forEach(ForgeConfigSpec::save);
                 this.minecraft.setScreen(this.lastScreen);
             }));
-            this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, CommonComponents.GUI_CANCEL, button -> {
-                Screen confirmScreen;
-                if (this.allEntries.stream().allMatch(Entry::mayDiscardChanges)) {
-                    confirmScreen = this.lastScreen;
-                } else {
-                    confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.discard"), result -> {
-                        if (result) {
-                            this.minecraft.setScreen(this.lastScreen);
-                        } else {
-                            this.minecraft.setScreen(this);
-                        }
-                    });
-                }
-                this.minecraft.setScreen(confirmScreen);
-            }));
+            this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 29, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
+        }
+
+        @Override
+        public void onClose() {
+            Screen confirmScreen;
+            if (this.allEntries.stream().allMatch(Entry::mayDiscardChanges)) {
+                confirmScreen = this.lastScreen;
+            } else {
+                confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.discard_message"), result -> {
+                    if (result) {
+                        this.minecraft.setScreen(this.lastScreen);
+                    } else {
+                        this.minecraft.setScreen(this);
+                    }
+                });
+            }
+            this.minecraft.setScreen(confirmScreen);
         }
     }
 
@@ -257,8 +261,14 @@ public abstract class ConfigScreen extends Screen
         });
         this.addWidget(this.searchTextField);
 
-        this.restoreDefaultsButton = this.addRenderableWidget(new IconButton(this.width / 2 + 112, 22, 20, 20, 0, 0, (Button button, PoseStack poseStack, int i, int j) -> {}, button -> {
-            Screen confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.restore"), result -> {
+        final Button.OnTooltip onTooltip = (button, matrixStack, mouseX, mouseY) -> {
+            Font font = ConfigScreen.this.minecraft.font;
+            List<FormattedText> lines = font.getSplitter().splitLines(new TranslatableComponent("configured.gui.restore"), 200, Style.EMPTY);
+            final List<FormattedCharSequence> formattedCharSequences = Language.getInstance().getVisualOrder(lines);
+            ConfigScreen.this.setActiveTooltip(formattedCharSequences);
+        };
+        final Button.OnPress onPress = button -> {
+            Screen confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.restore_message"), result -> {
                 if (result) {// Resets all config values
                     this.allEntries.forEach(Entry::resetConfigValue);
                     // Updates the current entries to process UI changes
@@ -267,7 +277,8 @@ public abstract class ConfigScreen extends Screen
                 this.minecraft.setScreen(this);
             });
             this.minecraft.setScreen(confirmScreen);
-        }));
+        };
+        this.restoreDefaultsButton = this.addRenderableWidget(new IconButton(this.width / 2 + 112, 22, 20, 20, 0, 0, onTooltip, onPress));
         // Call during init to avoid the button flashing active
         this.updateRestoreDefaultButton();
     }
@@ -300,6 +311,9 @@ public abstract class ConfigScreen extends Screen
     public void tick()
     {
         this.updateRestoreDefaultButton();
+        if (this.activeTextField != null) {
+            this.activeTextField.tick();
+        }
     }
 
     /**
@@ -372,6 +386,23 @@ public abstract class ConfigScreen extends Screen
         this.activeTooltip = activeTooltip;
     }
 
+    @Override
+    public void renderDirtBackground(int vOffset)
+    {
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder builder = tesselator.getBuilder();
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.setShaderTexture(0, this.background);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        float size = 32.0F;
+        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        builder.vertex(0.0D, this.height, 0.0D).uv(0.0F, this.height / size + vOffset).color(64, 64, 64, 255).endVertex();
+        builder.vertex(this.width, this.height, 0.0D).uv(this.width / size, this.height / size + vOffset).color(64, 64, 64, 255).endVertex();
+        builder.vertex(this.width, 0.0D, 0.0D).uv(this.width / size, vOffset).color(64, 64, 64, 255).endVertex();
+        builder.vertex(0.0D, 0.0D, 0.0D).uv(0.0F, vOffset).color(64, 64, 64, 255).endVertex();
+        tesselator.end();
+    }
+
     abstract class Entry extends ContainerObjectSelectionList.Entry<ConfigScreen.Entry>
     {
         protected String label;
@@ -395,6 +426,13 @@ public abstract class ConfigScreen extends Screen
             {
                 ConfigScreen.this.setActiveTooltip(this.tooltip);
             }
+        }
+
+        List<FormattedCharSequence> makeTooltip(Component description)
+        {
+            Font font = ConfigScreen.this.minecraft.font;
+            List<FormattedText> lines = font.getSplitter().splitLines(description, 200, Style.EMPTY);
+            return Language.getInstance().getVisualOrder(lines);
         }
 
         @Override
@@ -457,13 +495,6 @@ public abstract class ConfigScreen extends Screen
             super.render(poseStack, x, top, left, width, p_230432_6_, p_230432_7_, p_230432_8_, p_230432_9_, p_230432_10_);
             Component title = new TextComponent(this.label).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.YELLOW);
             Screen.drawCenteredString(poseStack, ConfigScreen.this.minecraft.font, title, left + width / 2, top + 5, 16777215);
-        }
-
-        private List<FormattedCharSequence> makeTooltip(Component description)
-        {
-            Font font = ConfigScreen.this.minecraft.font;
-            List<FormattedText> lines = font.getSplitter().splitLines(description, 200, Style.EMPTY);
-            return Language.getInstance().getVisualOrder(lines);
         }
 
         @Override
@@ -537,16 +568,13 @@ public abstract class ConfigScreen extends Screen
             this.valueSpec = valueSpec;
             if(valueSpec.getComment() != null)
             {
-                this.tooltip = this.createToolTip(configValue, valueSpec);
+                this.tooltip = this.makeToolTip(configValue, valueSpec);
             }
-            Button.OnTooltip tooltip = (button, matrixStack, mouseX, mouseY) ->
-            {
-                if(button.active && button.isHovered())
-                {
-                    ConfigScreen.this.renderTooltip(matrixStack, ConfigScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.reset"), Math.max(ConfigScreen.this.width / 2 - 43, 170)), mouseX, mouseY);
-                }
+            final Button.OnTooltip onTooltip = (button, matrixStack, mouseX, mouseY) -> {
+                final List<FormattedCharSequence> formattedCharSequences = this.makeTooltip(new TranslatableComponent("configured.gui.reset"));
+                ConfigScreen.this.setActiveTooltip(formattedCharSequences);
             };
-            this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, tooltip, onPress -> this.resetConfigValue());
+            this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, onTooltip, button -> this.resetConfigValue());
             this.children.add(this.resetButton);
         }
 
@@ -598,11 +626,11 @@ public abstract class ConfigScreen extends Screen
             this.resetButton.render(poseStack, mouseX, mouseY, partialTicks);
         }
 
-        private List<FormattedCharSequence> createToolTip(ForgeConfigSpec.ConfigValue<?> value, ForgeConfigSpec.ValueSpec spec)
+        private List<FormattedCharSequence> makeToolTip(ForgeConfigSpec.ConfigValue<?> value, ForgeConfigSpec.ValueSpec spec)
         {
             Font font = ConfigScreen.this.minecraft.font;
             List<FormattedText> lines = font.getSplitter().splitLines(new TextComponent(spec.getComment()), 200, Style.EMPTY);
-            String name = lastValue(value.getPath(), "");
+            String name = Iterables.getLast(value.getPath(), "");
             lines.add(0, new TextComponent(name).withStyle(ChatFormatting.YELLOW));
             int rangeIndex = -1;
             for(int i = 0; i < lines.size(); i++)
@@ -982,7 +1010,8 @@ public abstract class ConfigScreen extends Screen
         public EnumEntry(ForgeConfigSpec.ConfigValue<Enum<?>> configValue, ForgeConfigSpec.ValueSpec valueSpec)
         {
             super(configValue, valueSpec);
-            this.button = new Button(10, 5, 44, 20, this.getButtonMessage(), (button) -> {
+            this.button = new Button(10, 5, 44, 20, this.getButtonMessage(), button -> {
+                // is this check necessary?
                 if(this.currentValue != null)
                 {
                     Object[] values = Stream.of(this.currentValue.getDeclaringClass().getEnumConstants()).filter(valueSpec::test).toArray();
@@ -995,7 +1024,7 @@ public abstract class ConfigScreen extends Screen
 
         @NotNull
         private TextComponent getButtonMessage() {
-            return new TextComponent(createLabel(this.currentValue.name()));
+            return new TextComponent(this.currentValue.name());
         }
 
         @Override
@@ -1048,23 +1077,6 @@ public abstract class ConfigScreen extends Screen
     }
 
     /**
-     * Gets the last element in a list
-     *
-     * @param list         the list of get the value from
-     * @param defaultValue if the list is empty, return this value instead
-     * @param <V>          the type of list
-     * @return the last element
-     */
-    private static <V> V lastValue(List<V> list, V defaultValue)
-    {
-        if(list.size() > 0)
-        {
-            return list.get(list.size() - 1);
-        }
-        return defaultValue;
-    }
-
-    /**
      * Tries to create a readable label from the given config value and spec. This will
      * first attempt to create a label from the translation key in the spec, otherwise it
      * will create a readable label from the raw config value name.
@@ -1079,7 +1091,7 @@ public abstract class ConfigScreen extends Screen
         {
             return new TranslatableComponent(valueSpec.getTranslationKey()).getString();
         }
-        return createLabel(lastValue(configValue.getPath(), ""));
+        return createLabel(Iterables.getLast(configValue.getPath(), ""));
     }
 
     /**
@@ -1103,22 +1115,5 @@ public abstract class ConfigScreen extends Screen
         // Finally join words. Some mods have inputs like "Foo_Bar" and this causes a double space.
         // To fix this any whitespace is replaced with a single space
         return Strings.join(words, " ").replaceAll("\\s++", " ");
-    }
-
-    @Override
-    public void renderDirtBackground(int vOffset)
-    {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder builder = tesselator.getBuilder();
-        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-        RenderSystem.setShaderTexture(0, this.background);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        float size = 32.0F;
-        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-        builder.vertex(0.0D, this.height, 0.0D).uv(0.0F, this.height / size + vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(this.width, this.height, 0.0D).uv(this.width / size, this.height / size + vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(this.width, 0.0D, 0.0D).uv(this.width / size, vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(0.0D, 0.0D, 0.0D).uv(0.0F, vOffset).color(64, 64, 64, 255).endVertex();
-        tesselator.end();
     }
 }

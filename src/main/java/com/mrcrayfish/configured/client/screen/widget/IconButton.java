@@ -56,5 +56,8 @@ public class IconButton extends Button
         RenderSystem.setShaderColor(brightness, brightness, brightness, this.alpha);
         blit(poseStack, this.x + 5, this.y + 4, this.getBlitOffset(), this.u, this.v, 11, 11, 32, 32);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, this.alpha);
+        if (this.active && this.isHovered()) {
+            this.renderToolTip(poseStack, mouseX, mouseY);
+        }
     }
 }
