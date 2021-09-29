@@ -1,6 +1,7 @@
 package fuzs.pickupnotifier.config;
 
 import com.google.common.collect.Lists;
+import com.mrcrayfish.configured.Configured;
 import fuzs.pickupnotifier.PickUpNotifier;
 import fuzs.pickupnotifier.client.gui.PositionPreset;
 import fuzs.pickupnotifier.config.core.AbstractConfig;
@@ -122,6 +123,19 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
             register(builder.comment("Offset on y-axis from screen border.").defineInRange("Y-Offset", 4, 0, Integer.MAX_VALUE), v -> this.yOffset = v);
             register(builder.comment("Percentage of relative screen height entries are allowed to fill at max.").defineInRange("Maximum Height", 0.5, 0.0, 1.0), v -> this.height = v);
             register(builder.comment("Scale of entries. A lower scale will make room for more rows to show. Works together with \"GUI Scale\" option in \"Video Settings\".").defineInRange("Custom Scale", 4, 1, 24), v -> this.scale = v);
+            this.deleteThisWhenDone(builder);
+        }
+
+        private void deleteThisWhenDone(ForgeConfigSpec.Builder builder) {
+            register(builder.comment("A list of ints.").define("Int-List", Lists.newArrayList(1, 2, 3, 4, 5)), v -> {
+                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Integer);
+            });
+            register(builder.comment("A list of bools.").defineList("Boolean-List", Lists.newArrayList(false, true, false), o -> true), v -> {
+                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Boolean);
+            });
+            register(builder.comment("A list of enums.").defineList("Enum-List", Lists.newArrayList(ChatFormatting.WHITE, ChatFormatting.BLACK, ChatFormatting.BLUE, ChatFormatting.ITALIC), o -> true), v -> {
+                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Enum<?>);
+            });
         }
 
     }
