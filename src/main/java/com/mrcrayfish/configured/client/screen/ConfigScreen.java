@@ -31,7 +31,6 @@ import net.minecraft.util.Mth;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,61 +52,141 @@ public abstract class ConfigScreen extends Screen
     final Screen lastScreen;
     private final ResourceLocation background;
     private ConfigList configList;
-    private List<EntryUnit> screenEntries;
-    final Map<Object, EntryUnit> allEntries;
+    final Map<Object, EntryUnit> valueToUnit;
     private ConfigEditBox activeTextField;
     private ConfigEditBox searchTextField;
     private List<? extends FormattedCharSequence> activeTooltip;
 
-    private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, Map<Object, EntryUnit> allEntries)
-    {
+    private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, Map<Object, EntryUnit> valueToUnit) {
         super(title);
         this.lastScreen = lastScreen;
         this.background = background;
-        this.allEntries = allEntries;
+        this.valueToUnit = valueToUnit;
     }
 
-    public static class Main extends ConfigScreen {
+    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, EnumMap<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs) {
+        return new ConfigScreen.Main(lastScreen, title, background, typeToSpecs, makeValueToUnitMap(mergeValues(typeToSpecs.values())));
+    }
 
-        private final EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries;
+    private static Map<Object, EntryUnit> makeValueToUnitMap(List<ForgeConfigSpec> specs) {
+        Map<Object, EntryUnit> allUnits = Maps.newHashMap();
+        specs.forEach(spec -> makeValueToUnitMap(spec, spec.getValues(), allUnits));
+        return ImmutableMap.copyOf(allUnits);
+    }
+
+    private static void makeValueToUnitMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, EntryUnit> allUnits) {
+        values.valueMap().forEach((path, value) -> {
+            if (value instanceof UnmodifiableConfig configValue) {
+                allUnits.put(configValue, new CategoryEntryUnit(ConfigScreen.formatLabel(path), configValue));
+                makeValueToUnitMap(spec, configValue, allUnits);
+            } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
+                allUnits.put(configValue, new ConfigEntryUnit<>(configValue, spec.getRaw(configValue.getPath())));
+            }
+        });
+    }
+
+    static <T, R extends Collection<T>> List<T> mergeValues(Collection<R> toMerge) {
+        return toMerge.stream()
+                .flatMap(Collection::stream)
+                .toList();
+    }
+
+    public final List<ConfigScreen.Entry> getConfigListEntries() {
+        return this.getConfigListEntries("");
+    }
+
+    void gatherEntriesRecursive(UnmodifiableConfig mainConfig, List<EntryUnit> entries, Map<Object, EntryUnit> allEntries) {
+        mainConfig.valueMap().values().forEach(value -> {
+            entries.add(allEntries.get(value));
+            if (value instanceof UnmodifiableConfig config) {
+                this.gatherEntriesRecursive(config, entries, allEntries);
+            }
+        });
+    }
+
+    abstract List<ConfigScreen.Entry> getConfigListEntries(String query);
+
+    private static class Main extends ConfigScreen {
+
+        private final EnumMap<ModConfig.Type, List<EntryUnit>> searchEntries;
+        private final EnumMap<ModConfig.Type, List<EntryUnit>> screenEntries;
+        private final List<ForgeConfigSpec> configSpecs;
         private Button restoreDefaultsButton;
 
-        public Main(Screen parent, Component title, EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries, ResourceLocation background) {
-            super(parent, title, background, gatherAllUnits(configFileEntries));
-            this.configFileEntries = configFileEntries;
+        private Main(Screen lastScreen, Component title, ResourceLocation background, EnumMap<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, EntryUnit> valueToUnit) {
+            super(lastScreen, title, background, valueToUnit);
+            this.searchEntries = this.gatherEntriesRecursive(typeToSpecs, valueToUnit);
+            this.screenEntries = typeToSpecs.entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream()
+                            .flatMap(spec -> spec.getValues().valueMap().values().stream())
+                            .map(valueToUnit::get)
+                            .toList(), (o1, o2) -> o1, () -> Maps.newEnumMap(ModConfig.Type.class)));
+            this.configSpecs = mergeValues(typeToSpecs.values());
+            this.buildSubScreens(mergeValues(this.screenEntries.values()));
+        }
+
+        private EnumMap<ModConfig.Type, List<EntryUnit>> gatherEntriesRecursive(EnumMap<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, EntryUnit> allEntries) {
+            EnumMap<ModConfig.Type, List<EntryUnit>> entries = Maps.newEnumMap(ModConfig.Type.class);
+            typeToSpecs.forEach((type, specs) -> {
+                final List<EntryUnit> typeEntries = entries.computeIfAbsent(type, key -> Lists.newArrayList());
+                specs.forEach(spec -> this.gatherEntriesRecursive(spec.getValues(), typeEntries, allEntries));
+            });
+            // can't make this immutable as required type doesn't exist for enummap
+            return entries;
         }
 
         @Override
-        List<EntryUnit> gatherScreenUnits()
-        {
-            List<EntryUnit> screenEntries = new ArrayList<>();
-            this.configFileEntries.forEach((type, pairs) -> {
+        public List<ConfigScreen.Entry> getConfigListEntries(final String query) {
 
-                final String typeExtension = type.extension();
-                screenEntries.add(new TitleEntryUnit(new TranslatableComponent("configured.gui.config_title", StringUtils.capitalize(typeExtension)), new TranslatableComponent(String.format("configured.gui.%s_config", typeExtension))));
-                List<EntryUnit> entries = Lists.newArrayList();
-                pairs.forEach(pair -> pair.getRight().valueMap().values().stream().map(this.allEntries::get).filter(Objects::nonNull).forEach(entries::add));
-                Collections.sort(entries);
-                screenEntries.addAll(entries);
+            if (!query.isEmpty()) {
+                EnumMap<ModConfig.Type, List<EntryUnit>> searchEntries = this.searchEntries.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream()
+                                .filter(e -> e.containsQuery(query))
+                                .toList(), (o1, o2) -> o1, () -> Maps.newEnumMap(ModConfig.Type.class)));
+                return this.getConfigListEntries(searchEntries, true);
+            } else {
+                return this.getConfigListEntries(this.screenEntries, false);
+            }
+        }
+
+        private List<ConfigScreen.Entry> getConfigListEntries(EnumMap<ModConfig.Type, List<EntryUnit>> entries, final boolean fromSearch) {
+            List<ConfigScreen.Entry> screenEntries = Lists.newArrayList();
+            entries.forEach((type, units) -> {
+                if (!units.isEmpty()) {
+                    screenEntries.add(this.makeTitleEntry(type));
+                    units.stream()
+                            .sorted()
+                            .peek(unit -> unit.withPath(fromSearch))
+                            .map(this::makeEntry)
+                            .filter(Objects::nonNull)
+                            .forEach(screenEntries::add);
+                }
             });
             return ImmutableList.copyOf(screenEntries);
+        }
+
+        private ConfigScreen.Entry makeTitleEntry(ModConfig.Type type) {
+            final String typeExtension = type.extension();
+            final Component title = new TranslatableComponent("configured.gui.config_title", StringUtils.capitalize(typeExtension));
+            final Component comment = new TranslatableComponent(String.format("configured.gui.%s_config", typeExtension));
+            return new TitleEntry(title, comment);
         }
 
         @Override
         protected void init() {
             super.init();
             this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, button -> {
-                this.allEntries.values().forEach(EntryUnit::saveConfigValue);
-                this.configFileEntries.values().stream().flatMap(Collection::stream).map(Pair::getLeft).forEach(ForgeConfigSpec::save);
+                this.valueToUnit.values().forEach(EntryUnit::saveConfigValue);
+                this.configSpecs.forEach(ForgeConfigSpec::save);
                 this.minecraft.setScreen(this.lastScreen);
             }));
             this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
             this.restoreDefaultsButton = this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.restore"), button -> {
                 Screen confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.restore_message"), result -> {
                     if (result) {// Resets all config values
-                        this.allEntries.values().forEach(EntryUnit::resetCurrentValue);
+                        this.valueToUnit.values().forEach(EntryUnit::resetCurrentValue);
                         // Updates the current entries to process UI changes
-                        this.refreshConfigList("");
+                        this.refreshConfigListEntries();
                     }
                     this.minecraft.setScreen(this);
                 });
@@ -126,14 +205,14 @@ public abstract class ConfigScreen extends Screen
         {
             if(this.restoreDefaultsButton != null)
             {
-                this.restoreDefaultsButton.active = this.allEntries.values().stream().anyMatch(EntryUnit::mayResetValue);
+                this.restoreDefaultsButton.active = this.valueToUnit.values().stream().anyMatch(EntryUnit::mayResetValue);
             }
         }
 
         @Override
         public void onClose() {
             Screen confirmScreen;
-            if (this.allEntries.values().stream().allMatch(EntryUnit::mayDiscardChanges)) {
+            if (this.valueToUnit.values().stream().allMatch(EntryUnit::mayDiscardChanges)) {
                 confirmScreen = this.lastScreen;
             } else {
                 confirmScreen = this.makeConfirmationScreen(new TranslatableComponent("configured.gui.discard_message"), result -> {
@@ -146,45 +225,46 @@ public abstract class ConfigScreen extends Screen
             }
             this.minecraft.setScreen(confirmScreen);
         }
-
-        private static Map<Object, EntryUnit> gatherAllUnits(EnumMap<ModConfig.Type, List<Pair<ForgeConfigSpec, UnmodifiableConfig>>> configFileEntries)
-        {
-            Map<Object, EntryUnit> allUnits = Maps.newHashMap();
-            configFileEntries.values().stream().flatMap(List::stream).forEach(pair -> {
-                gatherTypeUnits(pair.getLeft(), pair.getRight(), allUnits);
-            });
-            return ImmutableMap.copyOf(allUnits);
-        }
-
-        private static void gatherTypeUnits(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, EntryUnit> allUnits) {
-            values.valueMap().forEach((path, value) ->
-            {
-                if (value instanceof UnmodifiableConfig configValue) {
-                    allUnits.put(configValue, new CategoryEntryUnit(ConfigScreen.formatLabel(path), Pair.of(spec, configValue)));
-                    gatherTypeUnits(spec, configValue, allUnits);
-                } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
-                    allUnits.put(configValue, new ConfigEntryUnit<>(configValue, spec.getRaw(configValue.getPath())));
-                }
-            });
-        }
     }
 
     private static class Sub extends ConfigScreen {
 
-        private final List<Pair<ForgeConfigSpec, UnmodifiableConfig>> entry;
+        private final List<EntryUnit> searchEntries;
+        private final List<EntryUnit> screenEntries;
 
-        public Sub(Screen parent, Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> entry, ResourceLocation background, Map<Object, EntryUnit> allEntries) {
-            super(parent, title, background, allEntries);
-            this.entry = Collections.singletonList(entry);
+        private Sub(ConfigScreen lastScreen, Component title, UnmodifiableConfig config) {
+            super(lastScreen, new TextComponent("").append(lastScreen.getTitle()).append(" > ").append(title), lastScreen.background, lastScreen.valueToUnit);
+            this.searchEntries = this.gatherEntriesRecursive(config, lastScreen.valueToUnit);
+            this.screenEntries = config.valueMap().values().stream().map(lastScreen.valueToUnit::get).toList();
+            this.buildSubScreens(this.screenEntries);
+        }
+
+        private List<EntryUnit> gatherEntriesRecursive(UnmodifiableConfig mainConfig, Map<Object, EntryUnit> allEntries) {
+            List<EntryUnit> entries = Lists.newArrayList();
+            this.gatherEntriesRecursive(mainConfig, entries, allEntries);
+            return ImmutableList.copyOf(entries);
         }
 
         @Override
-        List<EntryUnit> gatherScreenUnits()
-        {
-            List<EntryUnit> entries = Lists.newArrayList();
-            this.entry.forEach(pair -> pair.getRight().valueMap().values().stream().map(this.allEntries::get).filter(Objects::nonNull).forEach(entries::add));
-            Collections.sort(entries);
-            return ImmutableList.copyOf(entries);
+        public List<ConfigScreen.Entry> getConfigListEntries(final String query) {
+
+            if (!query.isEmpty()) {
+                final List<EntryUnit> searchEntries = this.searchEntries.stream()
+                        .filter(e -> e.containsQuery(query))
+                        .toList();
+                return this.getConfigListEntries(searchEntries, true);
+            } else {
+                return this.getConfigListEntries(this.screenEntries, false);
+            }
+        }
+
+        private List<ConfigScreen.Entry> getConfigListEntries(List<EntryUnit> entries, final boolean fromSearch) {
+            return entries.stream()
+                    .sorted()
+                    .peek(unit -> unit.withPath(fromSearch))
+                    .map(this::makeEntry)
+                    .filter(Objects::nonNull)
+                    .toList();
         }
 
         @Override
@@ -196,26 +276,19 @@ public abstract class ConfigScreen extends Screen
         }
     }
 
-    /**
-     * Gathers the entries for each config spec to be later added to the option list
-     */
-    abstract List<EntryUnit> gatherScreenUnits();
+    void buildSubScreens(List<EntryUnit> screenEntries) {
+        for (EntryUnit unit : screenEntries) {
+            if (unit instanceof CategoryEntryUnit categoryEntryUnit) {
+                categoryEntryUnit.setScreen(new Sub(this, categoryEntryUnit.getTitle(), categoryEntryUnit.getConfig()));
+            }
+        }
+    }
 
     @SuppressWarnings("unchecked")
-    Entry makeEntry(EntryUnit entryUnit, boolean fromSearch) {
+    Entry makeEntry(EntryUnit entryUnit) {
 
-        if (entryUnit instanceof TitleEntryUnit titleEntryUnit) {
-            return new TitleEntry(titleEntryUnit.getTitle(), titleEntryUnit.getDescription());
-        } else if (entryUnit instanceof CategoryEntryUnit categoryEntryUnit) {
-            ConfigScreen lastScreen = this;
-            // when making from search parent screen should always be main screen to avoid unnecessary queuing
-            // proper hierarchy would be nicer, but current implementation doesn't allow for that
-            if (fromSearch) {
-                while (lastScreen.lastScreen instanceof ConfigScreen configScreen) {
-                    lastScreen = configScreen;
-                }
-            }
-            return new CategoryEntry(lastScreen, categoryEntryUnit.getTitle(), categoryEntryUnit.getSpecValuePair());
+        if (entryUnit instanceof CategoryEntryUnit categoryEntryUnit) {
+            return new CategoryEntry(categoryEntryUnit.getTitle(), categoryEntryUnit.getScreen());
         } else if (entryUnit instanceof ConfigEntryUnit<?> configEntryUnit) {
 
             final Object currentValue = configEntryUnit.getCurrentValue();
@@ -256,26 +329,20 @@ public abstract class ConfigScreen extends Screen
     protected void init()
     {
         super.init();
-        this.screenEntries = this.gatherScreenUnits();
-        this.configList = new ConfigList(this.screenEntries.stream().map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, false)).collect(Collectors.toList()));
-        ConfigEntry.searching = false;
+        this.configList = new ConfigList(this.getConfigListEntries());
         this.addWidget(this.configList);
         this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 109, 22, 218, 20);
-        this.searchTextField.setResponder(this::refreshConfigList);
+        this.searchTextField.setResponder(this::refreshConfigListEntries);
         this.addWidget(this.searchTextField);
     }
 
-    void refreshConfigList(String query) {
-        if (this.configList != null && this.screenEntries != null) {
-            Collection<ConfigScreen.Entry> entries;
-            if (!query.isEmpty()) {
-                entries = this.allEntries.values().stream().filter(entry -> entry.containsQuery(query)).map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, true)).collect(Collectors.toList());
-                ConfigEntry.searching = true;
-            } else {
-                entries = this.screenEntries.stream().map((EntryUnit entryUnit) -> this.makeEntry(entryUnit, false)).collect(Collectors.toList());
-                ConfigEntry.searching = false;
-            }
-            this.configList.replaceEntries(entries);
+    void refreshConfigListEntries() {
+        this.refreshConfigListEntries("");
+    }
+
+    private void refreshConfigListEntries(String query) {
+        if (this.configList != null) {
+            this.configList.replaceEntries(this.getConfigListEntries(query));
         }
     }
 
@@ -402,13 +469,13 @@ public abstract class ConfigScreen extends Screen
             this.tooltip = tooltip;
         }
 
-        public Component getTitle()
+        public final Component getTitle()
         {
             return this.title;
         }
 
         @Nullable
-        public List<? extends FormattedCharSequence> getTooltip() {
+        public final List<? extends FormattedCharSequence> getTooltip() {
             return this.tooltip;
         }
 
@@ -473,12 +540,10 @@ public abstract class ConfigScreen extends Screen
     {
         private final Button button;
 
-        public CategoryEntry(Screen lastScreen, Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair)
+        public CategoryEntry(Component title, ConfigScreen screen)
         {
             super(title, null);
-            Component newTitle = new TextComponent("").append(lastScreen.getTitle()).append(" > ").append(this.getTitle());
-            final Sub subScreen = new Sub(lastScreen, newTitle, specValuePair, ConfigScreen.this.background, ConfigScreen.this.allEntries);
-            this.button = new Button(10, 5, 44, 20, new TextComponent("").append(this.getTitle()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.WHITE), onPress -> ConfigScreen.this.minecraft.setScreen(subScreen));
+            this.button = new Button(10, 5, 44, 20, new TextComponent("").append(this.getTitle()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.WHITE), button -> ConfigScreen.this.minecraft.setScreen(screen));
         }
 
         @Override
@@ -533,66 +598,23 @@ public abstract class ConfigScreen extends Screen
 
         void saveConfigValue();
 
+        void withPath(boolean withPath);
+
         @Override
         default int compareTo(@NotNull EntryUnit o) {
             return this.getTitle().getString().compareTo(o.getTitle().getString());
         }
     }
 
-    static class TitleEntryUnit implements EntryUnit {
-
-        private final Component title;
-        private final Component desciption;
-
-        public TitleEntryUnit(Component title, Component description) {
-            this.title = title;
-            this.desciption = description;
-        }
-
-        @Override
-        public Component getTitle() {
-            return this.title;
-        }
-
-        public Component getDescription() {
-            return this.desciption;
-        }
-
-        @Override
-        public boolean containsQuery(String query) {
-            return false;
-        }
-
-        @Override
-        public boolean mayResetValue() {
-            return false;
-        }
-
-        @Override
-        public boolean mayDiscardChanges() {
-            return true;
-        }
-
-        @Override
-        public void resetCurrentValue() {
-
-        }
-
-        @Override
-        public void saveConfigValue() {
-
-        }
-
-    }
-
     static class CategoryEntryUnit implements EntryUnit {
 
         private final Component title;
-        private final Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair;
+        private final UnmodifiableConfig config;
+        private ConfigScreen screen;
 
-        public CategoryEntryUnit(Component title, Pair<ForgeConfigSpec, UnmodifiableConfig> specValuePair) {
+        public CategoryEntryUnit(Component title, UnmodifiableConfig config) {
             this.title = title;
-            this.specValuePair = specValuePair;
+            this.config = config;
         }
 
         @Override
@@ -600,8 +622,16 @@ public abstract class ConfigScreen extends Screen
             return this.title;
         }
 
-        public Pair<ForgeConfigSpec, UnmodifiableConfig> getSpecValuePair() {
-            return this.specValuePair;
+        public UnmodifiableConfig getConfig() {
+            return this.config;
+        }
+
+        public ConfigScreen getScreen() {
+            return this.screen;
+        }
+
+        public void setScreen(ConfigScreen screen) {
+            this.screen = screen;
         }
 
         @Override
@@ -621,6 +651,11 @@ public abstract class ConfigScreen extends Screen
 
         @Override
         public void saveConfigValue() {
+
+        }
+
+        @Override
+        public void withPath(boolean withPath) {
 
         }
 
@@ -632,6 +667,7 @@ public abstract class ConfigScreen extends Screen
         private final ForgeConfigSpec.ValueSpec valueSpec;
         private final Component title;
         private T currentValue;
+        private boolean withPath;
 
         public ConfigEntryUnit(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
             this.configValue = configValue;
@@ -665,6 +701,15 @@ public abstract class ConfigScreen extends Screen
             this.configValue.set(this.currentValue);
         }
 
+        @Override
+        public void withPath(boolean withPath) {
+            this.withPath = withPath;
+        }
+
+        public boolean withPath() {
+            return this.withPath;
+        }
+
         @SuppressWarnings("unchecked")
         public T getDefaultValue() {
             return (T) this.valueSpec.getDefault();
@@ -692,22 +737,17 @@ public abstract class ConfigScreen extends Screen
     {
         final List<AbstractWidget> children = Lists.newArrayList();
         private final ConfigEntryUnit<T> configEntryUnit;
-        private final List<? extends FormattedCharSequence> pathTooltip;
         final Button resetButton;
-        public static boolean searching;
 
         public ConfigEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString)
         {
-            // default value converter is necessary for enum values (fixes an issue when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
-            super(configEntryUnit.getTitle(), makeTooltip(ConfigScreen.this.minecraft.font, configEntryUnit.getPath(), configEntryUnit.getValueSpec().getComment(), toString.apply(configEntryUnit.getDefaultValue())));
+            // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
+            super(configEntryUnit.getTitle(), makeTooltip(ConfigScreen.this.minecraft.font, configEntryUnit, toString));
             this.configEntryUnit = configEntryUnit;
-            final Component pathComponent = configEntryUnit.getPath().stream().map(ConfigScreen::formatLabel).reduce((o1, o2) -> new TextComponent("").append(o1).append(" > ").append(o2)).orElse(TextComponent.EMPTY);
-            this.pathTooltip = makeTooltip(ConfigScreen.this.minecraft.font, new TranslatableComponent("configured.gui.path", pathComponent).withStyle(ChatFormatting.GRAY));
-            final Button.OnTooltip onTooltip = (button, matrixStack, mouseX, mouseY) -> {
+            this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, (button, matrixStack, mouseX, mouseY) -> {
                 final List<FormattedCharSequence> formattedCharSequences = makeTooltip(ConfigScreen.this.minecraft.font, new TranslatableComponent("configured.gui.reset"));
                 ConfigScreen.this.setActiveTooltip(formattedCharSequences);
-            };
-            this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, onTooltip, button -> {
+            }, button -> {
                 configEntryUnit.resetCurrentValue();
                 this.onConfigValueChanged(configEntryUnit.getCurrentValue(), true);
             });
@@ -718,15 +758,6 @@ public abstract class ConfigScreen extends Screen
         public void onConfigValueChanged(T newValue, boolean reset) {
             this.resetButton.active = this.configEntryUnit.mayResetValue();
             ConfigScreen.this.updateRestoreDefaultButton();
-        }
-
-        @Override
-        public @Nullable List<? extends FormattedCharSequence> getTooltip() {
-            final List<? extends FormattedCharSequence> tooltip = super.getTooltip();
-            if (tooltip != null && searching) {
-                return Stream.of(tooltip, this.pathTooltip).flatMap(List::stream).collect(Collectors.toList());
-            }
-            return tooltip;
         }
 
         @Override
@@ -786,7 +817,11 @@ public abstract class ConfigScreen extends Screen
             return builder.build();
         }
 
-        static List<FormattedCharSequence> makeTooltip(Font font, List<String> path, String comment, String defaultValue)
+        static <T> List<FormattedCharSequence> makeTooltip(Font font, ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString) {
+            return makeTooltip(font, configEntryUnit.getPath(), configEntryUnit.getValueSpec().getComment(), toString.apply(configEntryUnit.getDefaultValue()), configEntryUnit.withPath());
+        }
+
+        private static List<FormattedCharSequence> makeTooltip(Font font, List<String> path, String comment, String defaultValue, boolean withPath)
         {
             final List<FormattedText> lines = Lists.newArrayList();
             String name = Iterables.getLast(path, "");
@@ -815,6 +850,10 @@ public abstract class ConfigScreen extends Screen
                 lines.addAll(splitLines);
             }
             lines.add(new TranslatableComponent("configured.gui.default", defaultValue).withStyle(ChatFormatting.GRAY));
+            if (withPath) {
+                final Component pathComponent = path.stream().map(ConfigScreen::formatLabel).reduce((o1, o2) -> new TextComponent("").append(o1).append(" > ").append(o2)).orElse(TextComponent.EMPTY);
+                lines.add(new TranslatableComponent("configured.gui.path", pathComponent).withStyle(ChatFormatting.GRAY));
+            }
             return Language.getInstance().getVisualOrder(lines);
         }
     }

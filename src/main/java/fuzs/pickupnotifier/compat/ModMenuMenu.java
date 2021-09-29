@@ -10,6 +10,6 @@ public class ModMenuMenu implements ModMenuApi {
 
     @Override
     public ConfigScreenFactory<ConfigScreen> getModConfigScreenFactory() {
-        return screen -> ClientHandler.createConfigScreen(PickUpNotifier.MODID).apply(screen);
+        return lastScreen -> ClientHandler.createConfigScreen(PickUpNotifier.MODID).apply(lastScreen);
     }
 }
