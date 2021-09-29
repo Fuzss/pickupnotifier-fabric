@@ -54,20 +54,20 @@ public abstract class EditListScreen<T> extends Screen
     {
         this.list = new EditListScreenList();
         this.addWidget(this.list);
-        this.addRenderableWidget(new Button(this.width / 2 - 140, this.height - 29, 90, 20, CommonComponents.GUI_DONE, (button) -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, (button) -> {
             List<T> newValues = this.values.stream().map(MutableObject::getValue).collect(Collectors.toList());
             this.valueSpec.correct(newValues);
             this.onSave.accept(newValues);
             this.minecraft.setScreen(this.parent);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 45, this.height - 29, 90, 20, new TranslatableComponent("configured.gui.add_value"), (button) -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.add_value"), (button) -> {
             this.minecraft.setScreen(new EditStringScreen(EditListScreen.this, new TranslatableComponent("configured.gui.edit_value"), "", o -> true, s -> {
                 MutableObject<T> holder = new MutableObject<>(this.fromString(s));
                 this.values.add(holder);
                 this.list.addEntry(new ListScreenEntry(this.list, holder));
             }));
         }));
-        this.addRenderableWidget(new Button(this.width / 2 + 50, this.height - 29, 90, 20, CommonComponents.GUI_CANCEL, (button) -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, (button) -> {
             this.minecraft.setScreen(this.parent);
         }));
     }
