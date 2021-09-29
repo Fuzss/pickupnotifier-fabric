@@ -31,17 +31,19 @@ import java.util.stream.Collectors;
  */
 public abstract class EditListScreen<T> extends Screen
 {
-    private final Screen parent;
+    private final Screen lastScreen;
+    private final Class<T> type;
     private final List<MutableObject<T>> values = new ArrayList<>();
     private final ForgeConfigSpec.ValueSpec valueSpec;
     private final Consumer<List<T>> onSave;
-    private EditListScreenList list;
+    private EditListScreenList screenList;
     private List<? extends FormattedCharSequence> activeTooltip;
 
-    public EditListScreen(Screen parent, Component titleIn, List<T> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave)
+    public EditListScreen(Screen lastScreen, Component titleIn, Class<T> type, List<T> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave)
     {
         super(titleIn);
-        this.parent = parent;
+        this.lastScreen = lastScreen;
+        this.type = type;
         this.values.addAll(listValue.stream().map(MutableObject::new).collect(Collectors.toList()));
         this.valueSpec = valueSpec;
         this.onSave = onSave;
@@ -54,31 +56,43 @@ public abstract class EditListScreen<T> extends Screen
     @Override
     protected void init()
     {
-        this.list = new EditListScreenList();
-        this.addWidget(this.list);
-        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, (button) -> {
+        this.screenList = new EditListScreenList();
+        this.addWidget(this.screenList);
+        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, button -> {
             List<T> newValues = this.values.stream().map(MutableObject::getValue).collect(Collectors.toList());
             this.valueSpec.correct(newValues);
             this.onSave.accept(newValues);
-            this.minecraft.setScreen(this.parent);
+            this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.value.add"), (button) -> {
-            this.minecraft.setScreen(new EditStringScreen(EditListScreen.this, new TranslatableComponent("configured.gui.value.edit"), "", o -> true, s -> {
-                MutableObject<T> holder = new MutableObject<>(this.fromString(s));
+        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
+            this.minecraft.setScreen(makeEditListScreen("configured.gui.value.add", "", input -> {
+                MutableObject<T> holder = new MutableObject<>(this.fromString(input));
                 this.values.add(holder);
-                this.list.addEntry(new ListScreenEntry(this.list, holder));
+                this.screenList.addEntry(new ListScreenEntry(this.screenList, holder));
             }));
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, (button) -> {
-            this.minecraft.setScreen(this.parent);
+        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> {
+            this.minecraft.setScreen(this.lastScreen);
         }));
+    }
+
+    private EditStringScreen makeEditListScreen(String translationKey, String value, Consumer<String> onSave) {
+        return new EditStringScreen(EditListScreen.this, new TranslatableComponent(translationKey, this.type.getSimpleName()), value, input -> {
+            try {
+                this.fromString(input);
+                return true;
+            } catch (RuntimeException ignored) {
+
+            }
+            return false;
+        }, onSave);
     }
 
     @Override
     public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
         this.activeTooltip = null;
         this.renderBackground(poseStack);
-        this.list.render(poseStack, mouseX, mouseY, partialTicks);
+        this.screenList.render(poseStack, mouseX, mouseY, partialTicks);
         drawCenteredString(poseStack, this.font, this.title, this.width / 2, 14, 0xFFFFFF);
         super.render(poseStack, mouseX, mouseY, partialTicks);
         if (this.activeTooltip != null) {
@@ -138,26 +152,27 @@ public abstract class EditListScreen<T> extends Screen
         }
     }
 
-    public class ListScreenEntry extends ContainerObjectSelectionList.Entry<ListScreenEntry>
+    private class ListScreenEntry extends ContainerObjectSelectionList.Entry<ListScreenEntry>
     {
         private final MutableObject<T> holder;
         private final EditListScreenList list;
         private final Button editButton;
         private final Button deleteButton;
 
-        public ListScreenEntry(EditListScreenList list, MutableObject<T> holder)
+        private ListScreenEntry(EditListScreenList list, MutableObject<T> holder)
         {
             this.list = list;
             this.holder = holder;
             this.editButton = new Button(0, 0, 42, 20, new TranslatableComponent("configured.gui.edit"), onPress -> {
-                EditListScreen.this.minecraft.setScreen(new EditStringScreen(EditListScreen.this, new TranslatableComponent("configured.gui.value.edit"), EditListScreen.this.toString(this.holder.getValue()), o -> true, value -> this.holder.setValue(EditListScreen.this.fromString(value))));
+                EditListScreen.this.minecraft.setScreen(EditListScreen.this.makeEditListScreen("configured.gui.value.edit", EditListScreen.this.toString(this.holder.getValue()), input -> {
+                    this.holder.setValue(EditListScreen.this.fromString(input));
+                }));
             });
-            Button.OnTooltip tooltip = (button, matrixStack, mouseX, mouseY) -> {
+            this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, (button, matrixStack, mouseX, mouseY) -> {
                 if(button.active && button.isHovered()) {
                     EditListScreen.this.activeTooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
                 }
-            };
-            this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, tooltip, onPress -> {
+            }, button -> {
                 EditListScreen.this.values.remove(this.holder);
                 this.list.removeEntry(this);
             });

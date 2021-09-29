@@ -305,7 +305,7 @@ public abstract class ConfigScreen extends Screen
         RenderSystem.setShaderTexture(0, LOGO_TEXTURE);
         blit(poseStack, 10, 13, this.getBlitOffset(), 0, 0, 23, 23, 32, 32);
         if (ScreenUtil.isMouseWithin(10, 13, 23, 23, mouseX, mouseY)) {
-            this.setActiveTooltip(this.minecraft.font.split(new TranslatableComponent("configured.gui.info"), 200));
+            this.setActiveTooltip(this.font.split(new TranslatableComponent("configured.gui.info"), 200));
         }
         if (this.activeTooltip != null) {
             this.renderTooltip(poseStack, this.activeTooltip, mouseX, mouseY);
@@ -416,21 +416,21 @@ public abstract class ConfigScreen extends Screen
     @SuppressWarnings("unchecked")
     private ListEntry<?> makeListEntry(EntryUnit entryUnit, Object value) throws RuntimeException {
         if (value instanceof Boolean) {
-            return new ListEntry<>((ConfigEntryUnit<List<Boolean>>) entryUnit, Object::toString, v -> switch (v) {
+            return new ListEntry<>((ConfigEntryUnit<List<Boolean>>) entryUnit, Boolean.class, Object::toString, v -> switch (v.toLowerCase(Locale.ROOT)) {
                 case "true" -> true;
                 case "false" -> false;
                 default -> throw new IllegalArgumentException("unable to convert boolean value");
             });
         } else if (value instanceof Integer) {
-            return new ListEntry<>((ConfigEntryUnit<List<Integer>>) entryUnit, Object::toString, Integer::parseInt);
+            return new ListEntry<>((ConfigEntryUnit<List<Integer>>) entryUnit, Integer.class, Object::toString, Integer::parseInt);
         } else if (value instanceof Double) {
-            return new ListEntry<>((ConfigEntryUnit<List<Double>>) entryUnit, Object::toString, Double::parseDouble);
+            return new ListEntry<>((ConfigEntryUnit<List<Double>>) entryUnit, Double.class, Object::toString, Double::parseDouble);
         } else if (value instanceof Long) {
-            return new ListEntry<>((ConfigEntryUnit<List<Long>>) entryUnit, Object::toString, Long::parseLong);
+            return new ListEntry<>((ConfigEntryUnit<List<Long>>) entryUnit, Long.class, Object::toString, Long::parseLong);
         } else if (value instanceof Enum<?>) {
             return new EnumListEntry((ConfigEntryUnit<List<Enum<?>>>) entryUnit, (Class<Enum<?>>) value.getClass());
         } else if (value instanceof String) {
-            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, Function.identity(), Function.identity());
+            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, Function.identity(), Function.identity());
         } else {
             return new DangerousListEntry((ConfigEntryUnit<List<String>>) entryUnit);
         }
@@ -675,7 +675,7 @@ public abstract class ConfigScreen extends Screen
     {
         public TitleEntry(Component title, Component description)
         {
-            super(title, ConfigScreen.this.minecraft.font.split(description, 200));
+            super(title, ConfigScreen.this.font.split(description, 200));
         }
 
         @Override
@@ -689,7 +689,7 @@ public abstract class ConfigScreen extends Screen
         {
             super.render(poseStack, index, entryTop, entryLeft, rowWidth, entryHeight, p_230432_7_, p_230432_8_, p_230432_9_, p_230432_10_);
             Component title = new TextComponent("").append(this.getTitle()).withStyle(ChatFormatting.BOLD).withStyle(ChatFormatting.YELLOW);
-            Screen.drawCenteredString(poseStack, ConfigScreen.this.minecraft.font, title, entryLeft + rowWidth / 2, entryTop + 5, 16777215);
+            Screen.drawCenteredString(poseStack, ConfigScreen.this.font, title, entryLeft + rowWidth / 2, entryTop + 5, 16777215);
         }
     }
 
@@ -749,9 +749,9 @@ public abstract class ConfigScreen extends Screen
         public ConfigEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString)
         {
             // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
-            super(configEntryUnit.getTitle(), makeTooltip(ConfigScreen.this.minecraft.font, configEntryUnit, toString));
+            super(configEntryUnit.getTitle(), makeTooltip(ConfigScreen.this.font, configEntryUnit, toString));
             this.configEntryUnit = configEntryUnit;
-            final List<FormattedCharSequence> formattedCharSequences = ConfigScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.reset"), 200);
+            final List<FormattedCharSequence> formattedCharSequences = ConfigScreen.this.font.split(new TranslatableComponent("configured.gui.tooltip.reset"), 200);
             this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, (button, matrixStack, mouseX, mouseY) -> {
                 ConfigScreen.this.setActiveTooltip(formattedCharSequences);
             }, button -> {
@@ -779,14 +779,14 @@ public abstract class ConfigScreen extends Screen
             super.render(poseStack, index, entryTop, entryLeft, rowWidth, entryHeight, mouseX, mouseY, hovered, partialTicks);
 
             final Component title = this.getTitle();
-            if (ConfigScreen.this.minecraft.font.width(title) > rowWidth - 75)
+            if (ConfigScreen.this.font.width(title) > rowWidth - 75)
             {
-                String trimmed = ConfigScreen.this.minecraft.font.substrByWidth(title, rowWidth - 75).getString() + "...";
-                ConfigScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(trimmed), entryLeft, entryTop + 6, 0xFFFFFF);
+                String trimmed = ConfigScreen.this.font.substrByWidth(title, rowWidth - 75).getString() + "...";
+                ConfigScreen.this.font.drawShadow(poseStack, new TextComponent(trimmed), entryLeft, entryTop + 6, 0xFFFFFF);
             }
             else
             {
-                ConfigScreen.this.minecraft.font.drawShadow(poseStack, title, entryLeft, entryTop + 6, 0xFFFFFF);
+                ConfigScreen.this.font.drawShadow(poseStack, title, entryLeft, entryTop + 6, 0xFFFFFF);
             }
 
             this.resetButton.x = entryLeft + rowWidth - 21;
@@ -993,19 +993,25 @@ public abstract class ConfigScreen extends Screen
     {
         private final Button button;
 
-        public EditScreenEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString)
+        public EditScreenEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString, Class<?> type)
         {
             super(configEntryUnit, toString);
             this.button = new Button(10, 5, 44, 20, new TranslatableComponent("configured.gui.edit"), button -> {
-                ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(this.getTitle(), configEntryUnit.getCurrentValue(), configEntryUnit.getValueSpec(), currentValue -> {
-                    configEntryUnit.setCurrentValue(currentValue);
-                    this.onConfigValueChanged(currentValue, false);
-                }));
+                // safety precaution for dealing with lists
+                try {
+                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(this.getTitle(), type, configEntryUnit.getCurrentValue(), configEntryUnit.getValueSpec(), currentValue -> {
+                        configEntryUnit.setCurrentValue(currentValue);
+                        this.onConfigValueChanged(currentValue, false);
+                    }));
+                } catch (RuntimeException e) {
+                    Configured.LOGGER.warn("Unable to handle list entry containing class type {}", type.getSimpleName(), e);
+                    button.active = false;
+                }
             });
             this.children.add(this.button);
         }
 
-        abstract Screen makeEditScreen(Component titleIn, T currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<T> onSave);
+        abstract Screen makeEditScreen(Component titleIn, Class<?> type, T currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<T> onSave);
 
         @Override
         public void render(PoseStack matrixStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks)
@@ -1022,12 +1028,12 @@ public abstract class ConfigScreen extends Screen
     {
         public StringEntry(ConfigEntryUnit<String> configEntryUnit)
         {
-            super(configEntryUnit, Function.identity());
+            super(configEntryUnit, Function.identity(), String.class);
         }
 
         @Override
-        Screen makeEditScreen(Component titleIn, String currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<String> onSave) {
-            return new EditStringScreen(ConfigScreen.this, titleIn, currentValue, valueSpec::test, onSave);
+        Screen makeEditScreen(Component titleIn, Class<?> type, String currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<String> onSave) {
+            return new EditStringScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.edit", type.getSimpleName()), currentValue, valueSpec::test, onSave);
         }
     }
 
@@ -1037,18 +1043,29 @@ public abstract class ConfigScreen extends Screen
         private final Function<T, String> toString;
         private final Function<String, T> fromString;
         
-        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Function<T, String> toString, Function<String, T> fromString)
+        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<T, String> toString, Function<String, T> fromString)
         {
-            super(configEntryUnit, v -> "[" + v.stream().map(toString).collect(Collectors.joining(", ")) + "]");
+            super(configEntryUnit, v -> "[" + v.stream().map(t -> {
+                // enums are sometimes read as strings which end up here
+                if (t instanceof Enum<?> e) {
+                    return e.name();
+                }
+                return toString.apply(t);
+            }).collect(Collectors.joining(", ")) + "]", type);
             this.toString = toString;
             this.fromString = fromString;
         }
 
+        @SuppressWarnings("unchecked")
         @Override
-        Screen makeEditScreen(Component titleIn, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
-            return new EditListScreen<>(ConfigScreen.this, titleIn, currentValue, valueSpec, onSave) {
+        Screen makeEditScreen(Component titleIn, Class<?> type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
+            return new EditListScreen<>(ConfigScreen.this, titleIn, (Class<T>) type, currentValue, valueSpec, onSave) {
                 @Override
                 String toString(T value) {
+                    // enums are sometimes read as strings which end up here
+                    if (value instanceof String s) {
+                        return s;
+                    }
                     return ListEntry.this.toString.apply(value);
                 }
 
@@ -1060,11 +1077,12 @@ public abstract class ConfigScreen extends Screen
         }
     }
 
-    // only here to enable this unchecked cast
+    // only here to enable unchecked cast
     public class EnumListEntry extends ListEntry<Enum<?>> {
 
         public EnumListEntry(ConfigEntryUnit<List<Enum<?>>> configEntryUnit, Class<Enum<?>> clazz) {
-            super(configEntryUnit, Enum::name, v -> valueOf(clazz, v));
+            // last two are unused
+            super(configEntryUnit, clazz, Enum::name, v -> valueOf(clazz, v));
         }
 
         @SuppressWarnings("unchecked")
@@ -1078,15 +1096,15 @@ public abstract class ConfigScreen extends Screen
     {
         public DangerousListEntry(ConfigEntryUnit<List<String>> configEntryUnit)
         {
-            super(configEntryUnit, Function.identity(), Function.identity());
+            super(configEntryUnit, String.class, Function.identity(), Function.identity());
         }
 
         @Override
-        Screen makeEditScreen(Component titleIn, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
+        Screen makeEditScreen(Component titleIn, Class<?> type, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
             // TODO proper screen
             return ConfigScreen.this.makeConfirmationScreen(new TranslatableComponent("configured.gui.message.dangerous"), result -> {
                 if (result) {
-                    ConfigScreen.this.minecraft.setScreen(super.makeEditScreen(titleIn, currentValue, valueSpec, onSave));
+                    ConfigScreen.this.minecraft.setScreen(super.makeEditScreen(titleIn, type, currentValue, valueSpec, onSave));
                 } else {
                     ConfigScreen.this.minecraft.setScreen(ConfigScreen.this);
                 }
