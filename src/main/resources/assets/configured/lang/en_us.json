@@ -3,6 +3,7 @@
     "configured.gui.restore": "Restore Defaults",
     "configured.gui.edit": "Edit",
     "configured.gui.add": "Add...",
+    "configured.gui.search": "Search...",
     "configured.gui.value.edit": "Edit %s Value",
     "configured.gui.value.add": "Add %s Value",
     "configured.gui.tooltip.reset": "Reset",

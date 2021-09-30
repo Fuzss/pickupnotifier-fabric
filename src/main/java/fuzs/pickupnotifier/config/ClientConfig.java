@@ -109,7 +109,7 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
 
         private DisplayConfig() {
 
-            super("display");
+            super("Boolean-List with an extremly long title so we can see what might happen when there is not enough space available to display it Hopefully it will trigger what we want to see I think we can stop now");
         }
 
         @Override
@@ -130,7 +130,7 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
             register(builder.comment("A list of ints.").define("Int-List", Lists.newArrayList(1, 2, 3, 4, 5)), v -> {
                 if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Integer);
             });
-            register(builder.comment("A list of bools.").defineList("Boolean-List", Lists.newArrayList(false, true, false), o -> true), v -> {
+            register(builder.comment("A list of bools. This description is the longest one you have ever seen. Maybe not until this point, but just wait what is about to come. So much great words here, it is unbelievable. Can we go even further? Maybe we can. I hope we can. It is so amazing how much text fits in here. Let us see what happens.").defineList("Boolean-List with an extremly long title so we can see what might happen when there is not enough space available to display it Hopefully it will trigger what we want to see I think we can stop now", Lists.newArrayList(false, true, false), o -> true), v -> {
                 if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Boolean);
             });
             register(builder.comment("A list of enums.").defineList("Enum-List", Lists.newArrayList(ChatFormatting.WHITE, ChatFormatting.BLACK, ChatFormatting.BLUE, ChatFormatting.ITALIC), o -> true), v -> {
