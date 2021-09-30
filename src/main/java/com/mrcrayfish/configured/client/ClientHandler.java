@@ -13,8 +13,8 @@ import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ConfigTracker;
 import net.minecraftforge.fml.config.ModConfig;
 
-import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -38,7 +38,7 @@ public class ClientHandler {
     }
 
     public static Function<Screen, ConfigScreen> createConfigScreen(final String modId, String displayName, ResourceLocation optionsBackground) {
-        EnumMap<ModConfig.Type, List<ForgeConfigSpec>> typeToConfigs = Maps.newEnumMap(ModConfig.Type.class);
+        Map<ModConfig.Type, List<ForgeConfigSpec>> typeToConfigs = Maps.newEnumMap(ModConfig.Type.class);
         ConfigTracker.INSTANCE.configSets().forEach((type, modConfigs) -> {
             // configData for server configs will only be set when on a server (internal or dedicated)
             final Set<ModConfig> configs = modConfigs.stream()

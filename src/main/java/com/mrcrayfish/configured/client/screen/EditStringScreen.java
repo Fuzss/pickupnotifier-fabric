@@ -38,15 +38,11 @@ public class EditStringScreen extends Screen
             this.onSave.accept(this.textField.getValue());
             this.minecraft.setScreen(this.lastScreen);
         }));
-        doneButton.active = this.validator.test(this.value);
         this.addRenderableWidget(new Button(this.width / 2 + 3, this.height / 2 + 3, 148, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
         this.textField = new EditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20, TextComponent.EMPTY);
         this.textField.setMaxLength(32500);
-        this.textField.setValue(this.value);
-        this.textField.setFocus(true);
-        this.textField.setCanLoseFocus(false);
         this.textField.setResponder(input -> {
             // save this as init is re-run on screen resizing
             this.value = input;
@@ -54,10 +50,11 @@ public class EditStringScreen extends Screen
                 this.textField.setTextColor(14737632);
                 doneButton.active = true;
             } else {
-                this.textField.setTextColor(16711680);
+                this.textField.setTextColor(!input.isEmpty() ? 16711680 : 14737632);
                 doneButton.active = false;
             }
         });
+        this.textField.setValue(this.value);
         this.addRenderableWidget(this.textField);
     }
 

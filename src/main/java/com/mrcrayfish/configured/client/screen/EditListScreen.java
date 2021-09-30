@@ -82,7 +82,6 @@ public abstract class EditListScreen<T> extends Screen
                 this.fromString(input);
                 return true;
             } catch (RuntimeException ignored) {
-
             }
             return false;
         }, onSave);
