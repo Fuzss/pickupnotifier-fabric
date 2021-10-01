@@ -355,7 +355,7 @@ public abstract class ConfigScreen extends Screen {
     }
 
     void onSearchFieldChanged(boolean isEmpty) {
-        // sets bottom button visibilities
+        // sets bottom buttons visibility
     }
 
     void updateRestoreButton() {
@@ -503,22 +503,22 @@ public abstract class ConfigScreen extends Screen {
     @SuppressWarnings("unchecked")
     private ListEntry<?> makeListEntry(IEntryUnit entryUnit, Object value) throws RuntimeException {
         if (value instanceof Boolean) {
-            return new ListEntry<>((ConfigEntryUnit<List<Boolean>>) entryUnit, Boolean.class, Object::toString, v -> switch (v.toLowerCase(Locale.ROOT)) {
+            return new ListEntry<>((ConfigEntryUnit<List<Boolean>>) entryUnit, Boolean.class, v -> switch (v.toLowerCase(Locale.ROOT)) {
                 case "true" -> true;
                 case "false" -> false;
                 // is caught when editing
                 default -> throw new IllegalArgumentException("unable to convert boolean value");
             });
         } else if (value instanceof Integer) {
-            return new ListEntry<>((ConfigEntryUnit<List<Integer>>) entryUnit, Integer.class, Object::toString, Integer::parseInt);
+            return new ListEntry<>((ConfigEntryUnit<List<Integer>>) entryUnit, Integer.class, Integer::parseInt);
         } else if (value instanceof Double) {
-            return new ListEntry<>((ConfigEntryUnit<List<Double>>) entryUnit, Double.class, Object::toString, Double::parseDouble);
+            return new ListEntry<>((ConfigEntryUnit<List<Double>>) entryUnit, Double.class, Double::parseDouble);
         } else if (value instanceof Long) {
-            return new ListEntry<>((ConfigEntryUnit<List<Long>>) entryUnit, Long.class, Object::toString, Long::parseLong);
+            return new ListEntry<>((ConfigEntryUnit<List<Long>>) entryUnit, Long.class, Long::parseLong);
         } else if (value instanceof Enum<?>) {
             return new EnumListEntry((ConfigEntryUnit<List<Enum<?>>>) entryUnit, (Class<Enum<?>>) value.getClass());
         } else if (value instanceof String) {
-            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, Function.identity(), Function.identity());
+            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, Function.identity());
         } else {
             // string list with warning screen
             return new DangerousListEntry((ConfigEntryUnit<List<String>>) entryUnit);
@@ -529,7 +529,7 @@ public abstract class ConfigScreen extends Screen {
     private Object getListValue(List<?> defaultValue, List<?> currentValue) {
         // desperate attempt to somehow get some generic information out of a list
         // checking default values first is important as current values might be of a different type due to how configs are read
-        // example: enum are often read as strings (especially this case needs a couple more work-around later)
+        // example: enum are read as strings, longs as integers
         if (!defaultValue.isEmpty()) {
             return defaultValue.get(0);
         } else if (!currentValue.isEmpty()) {
@@ -546,7 +546,6 @@ public abstract class ConfigScreen extends Screen {
             public void renderDirtBackground(int vOffset) {
                 ConfigScreen.renderDirtBackground(this, ConfigScreen.this.background, vOffset);
             }
-
         };
     }
 
@@ -731,12 +730,22 @@ public abstract class ConfigScreen extends Screen {
 
         @Override
         public boolean mayResetValue() {
-            return !this.currentValue.equals(this.valueSpec.getDefault());
+            return !listSafeEquals(this.currentValue, this.getDefaultValue());
         }
 
         @Override
         public boolean mayDiscardChanges() {
-            return this.configValue.get().equals(this.currentValue);
+            return listSafeEquals(this.configValue.get(), this.currentValue);
+        }
+
+        private static <T> boolean listSafeEquals(T o1, T o2) {
+            // attempts to solve an issue where types of lists won't match when one is read from file
+            if (o1 instanceof List<?> list1 && o2 instanceof List<?> list2) {
+                final Stream<String> stream1 = list1.stream().map(o -> o instanceof Enum<?> e ? e.name() : o.toString());
+                final Stream<String> stream2 = list2.stream().map(o -> o instanceof Enum<?> e ? e.name() : o.toString());
+                return Iterators.elementsEqual(stream1.iterator(), stream2.iterator());
+            }
+            return o1.equals(o2);
         }
 
         @Override
@@ -816,7 +825,7 @@ public abstract class ConfigScreen extends Screen {
         String getTruncatedText(Font font, String component, int maxWidth) {
             // trim component when too long
             if (font.width(component) > maxWidth) {
-                return font.plainSubstrByWidth(component, maxWidth - font.width("...")) + "...";
+                return font.plainSubstrByWidth(component, maxWidth - font.width(". . .")) + ". . .";
             } else {
                 return component;
             }
@@ -825,7 +834,7 @@ public abstract class ConfigScreen extends Screen {
         FormattedText getTruncatedText(Font font, Component component, int maxWidth, Style style) {
             // trim component when too long
             if (font.width(component) > maxWidth) {
-                return FormattedText.composite(font.getSplitter().headByWidth(component, maxWidth - font.width("..."), style), FormattedText.of("..."));
+                return FormattedText.composite(font.getSplitter().headByWidth(component, maxWidth - font.width(". . ."), style), FormattedText.of(". . ."));
             } else {
                 return component;
             }
@@ -893,6 +902,10 @@ public abstract class ConfigScreen extends Screen {
         private final ConfigEntryUnit<T> configEntryUnit;
         private final FormattedCharSequence visualTitle;
         final Button resetButton;
+
+        public ConfigEntry(ConfigEntryUnit<T> configEntryUnit) {
+            this(configEntryUnit, Object::toString);
+        }
 
         public ConfigEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString) {
             // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
@@ -1006,7 +1019,7 @@ public abstract class ConfigScreen extends Screen {
         private final EditBox textField;
 
         public NumberEntry(ConfigEntryUnit<T> configEntryUnit, Function<String, T> parser) {
-            super(configEntryUnit, Object::toString);
+            super(configEntryUnit);
             this.textField = new EditBox(ConfigScreen.this.font, 0, 0, 42, 18, TextComponent.EMPTY) {
 
                 @Override
@@ -1065,7 +1078,7 @@ public abstract class ConfigScreen extends Screen {
         private final Button button;
 
         public BooleanEntry(ConfigEntryUnit<Boolean> configEntryUnit) {
-            super(configEntryUnit, Object::toString);
+            super(configEntryUnit);
             this.button = new Button(10, 5, 44, 20, CommonComponents.optionStatus(configEntryUnit.getCurrentValue()), button -> {
                 final boolean newValue = !configEntryUnit.getCurrentValue();
                 configEntryUnit.setCurrentValue(newValue);
@@ -1147,17 +1160,15 @@ public abstract class ConfigScreen extends Screen {
 
     @Environment(EnvType.CLIENT)
     public class ListEntry<T> extends EditScreenEntry<List<T>> {
-        private final Function<T, String> toString;
+        private final Function<Object, String> toString;
         private final Function<String, T> fromString;
 
-        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<T, String> toString, Function<String, T> fromString) {
-            super(configEntryUnit, v -> "[" + v.stream().map(t -> {
-                // enums are sometimes read as strings which end up here
-                if (t instanceof Enum<?> e) {
-                    return e.name();
-                }
-                return toString.apply(t);
-            }).collect(Collectors.joining(", ")) + "]", type);
+        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<String, T> fromString) {
+            this(configEntryUnit, type, Object::toString, fromString);
+        }
+
+        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<Object, String> toString, Function<String, T> fromString) {
+            super(configEntryUnit, v -> "[" + v.stream().map(toString).collect(Collectors.joining(", ")) + "]", type);
             this.toString = toString;
             this.fromString = fromString;
         }
@@ -1167,11 +1178,7 @@ public abstract class ConfigScreen extends Screen {
         Screen makeEditScreen(Component titleIn, Class<?> type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
             return new EditListScreen<>(ConfigScreen.this, titleIn, (Class<T>) type, currentValue, valueSpec, onSave) {
                 @Override
-                String toString(T value) {
-                    // enums are sometimes read as strings which end up here
-                    if (value instanceof String s) {
-                        return s;
-                    }
+                String toString(Object value) {
                     return ListEntry.this.toString.apply(value);
                 }
 
@@ -1183,24 +1190,20 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    // only here to enable unchecked cast
     public class EnumListEntry extends ListEntry<Enum<?>> {
 
-        public EnumListEntry(ConfigEntryUnit<List<Enum<?>>> configEntryUnit, Class<Enum<?>> clazz) {
-            // last two are unused
-            super(configEntryUnit, clazz, Enum::name, v -> valueOf(clazz, v));
-        }
-
+        // mainly here to enable unchecked cast
         @SuppressWarnings("unchecked")
-        private static <T extends Enum<T>> T valueOf(Class<?> clazz, String v) {
-            return Enum.valueOf((Class<T>) clazz, v);
+        public <T extends Enum<T>> EnumListEntry(ConfigEntryUnit<List<Enum<?>>> configEntryUnit, Class<Enum<?>> clazz) {
+            // enums are read as strings from file
+            super(configEntryUnit, clazz, v -> v instanceof Enum<?> e ? e.name() : v.toString(), v -> Enum.valueOf((Class<T>) clazz, v));
         }
     }
 
     @Environment(EnvType.CLIENT)
     public class DangerousListEntry extends ListEntry<String> {
         public DangerousListEntry(ConfigEntryUnit<List<String>> configEntryUnit) {
-            super(configEntryUnit, String.class, Function.identity(), Function.identity());
+            super(configEntryUnit, String.class, Function.identity());
         }
 
         @Override
@@ -1231,11 +1234,6 @@ public abstract class ConfigScreen extends Screen {
         }
 
         @Override
-        public int getRowLeft() {
-            return super.getRowLeft();
-        }
-
-        @Override
         protected int getScrollbarPosition() {
             return this.width / 2 + 144;
         }
@@ -1246,7 +1244,7 @@ public abstract class ConfigScreen extends Screen {
         }
 
         @Override
-        public void replaceEntries(Collection<ConfigScreen.Entry> entries) {
+        protected void replaceEntries(Collection<ConfigScreen.Entry> entries) {
             super.replaceEntries(entries);
             // important when clearing search
             this.setScrollAmount(0.0);
@@ -1259,15 +1257,6 @@ public abstract class ConfigScreen extends Screen {
                     ConfigScreen.this.setActiveTooltip(entry.getTooltip());
                 }
             }
-            this.children().forEach(entry ->
-            {
-                entry.children().forEach(o ->
-                {
-                    if (o instanceof AbstractSliderButton) {
-                        ((AbstractSliderButton) o).renderToolTip(poseStack, mouseX, mouseY);
-                    }
-                });
-            });
         }
 
         /**

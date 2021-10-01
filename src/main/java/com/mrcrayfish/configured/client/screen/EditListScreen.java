@@ -5,7 +5,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.client.screen.widget.IconButton;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -21,7 +20,6 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraftforge.common.ForgeConfigSpec;
 import org.apache.commons.lang3.mutable.MutableObject;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -33,23 +31,31 @@ import java.util.stream.Collectors;
 public abstract class EditListScreen<T> extends Screen {
     private final Screen lastScreen;
     private final Class<T> type;
-    private final List<MutableObject<T>> values = new ArrayList<>();
+    private final List<MutableObject<String>> values;
     private final ForgeConfigSpec.ValueSpec valueSpec;
     private final Consumer<List<T>> onSave;
     private EditList list;
     private List<? extends FormattedCharSequence> activeTooltip;
     private int tooltipTicks;
 
-    public EditListScreen(Screen lastScreen, Component titleIn, Class<T> type, List<T> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
+    public EditListScreen(Screen lastScreen, Component titleIn, Class<T> type, List<?> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
         super(new TranslatableComponent("configured.gui.list.edit", titleIn));
         this.lastScreen = lastScreen;
         this.type = type;
-        this.values.addAll(listValue.stream().map(MutableObject::new).collect(Collectors.toList()));
+        this.values = listValue.stream()
+                .map(this::toString)
+                .map(MutableObject::new)
+                .collect(Collectors.toList());
         this.valueSpec = valueSpec;
         this.onSave = onSave;
     }
 
-    abstract String toString(T value);
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(this.lastScreen);
+    }
+
+    abstract String toString(Object value);
 
     abstract T fromString(String value);
 
@@ -58,14 +64,17 @@ public abstract class EditListScreen<T> extends Screen {
         this.list = new EditList();
         this.addWidget(this.list);
         this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
-            List<T> newValues = this.values.stream().map(MutableObject::getValue).collect(Collectors.toList());
+            final List<T> newValues = this.values.stream()
+                    .map(MutableObject::getValue)
+                    .map(this::fromString)
+                    .collect(Collectors.toList());
             this.valueSpec.correct(newValues);
             this.onSave.accept(newValues);
             this.minecraft.setScreen(this.lastScreen);
         }));
         this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
             this.minecraft.setScreen(this.makeEditListScreen("configured.gui.value.add", "", input -> {
-                MutableObject<T> holder = new MutableObject<>(this.fromString(input));
+                MutableObject<String> holder = new MutableObject<>(input);
                 this.values.add(holder);
                 this.list.addEntry(new EditListEntry(this.list, holder));
             }));
@@ -130,43 +139,27 @@ public abstract class EditListScreen<T> extends Screen {
         }
 
         @Override
-        public int addEntry(EditListEntry entry) {
+        protected int addEntry(EditListEntry entry) {
             return super.addEntry(entry);
         }
 
         @Override
-        public boolean removeEntry(EditListEntry entry) {
+        protected boolean removeEntry(EditListEntry entry) {
             return super.removeEntry(entry);
-        }
-
-        @Override
-        public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-            super.render(poseStack, mouseX, mouseY, partialTicks);
-            this.children().forEach(entry ->
-            {
-                entry.children().forEach(o ->
-                {
-                    if (o instanceof AbstractSliderButton) {
-                        ((AbstractSliderButton) o).renderToolTip(poseStack, mouseX, mouseY);
-                    }
-                });
-            });
         }
     }
 
     private class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
-        private final MutableObject<T> holder;
+        private final MutableObject<String> holder;
         private final EditList list;
         private final Button editButton;
         private final Button deleteButton;
 
-        private EditListEntry(EditList list, MutableObject<T> holder) {
+        private EditListEntry(EditList list, MutableObject<String> holder) {
             this.list = list;
             this.holder = holder;
             this.editButton = new Button(0, 0, 42, 20, new TranslatableComponent("configured.gui.edit"), onPress -> {
-                EditListScreen.this.minecraft.setScreen(EditListScreen.this.makeEditListScreen("configured.gui.value.edit", EditListScreen.this.toString(this.holder.getValue()), input -> {
-                    this.holder.setValue(EditListScreen.this.fromString(input));
-                }));
+                EditListScreen.this.minecraft.setScreen(EditListScreen.this.makeEditListScreen("configured.gui.value.edit", this.holder.getValue(), this.holder::setValue));
             });
             final List<FormattedCharSequence> tooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
             this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, button -> {
@@ -182,11 +175,9 @@ public abstract class EditListScreen<T> extends Screen {
         @Override
         public void render(PoseStack poseStack, int x, int top, int left, int width, int height, int mouseX, int mouseY, boolean selected, float partialTicks) {
             EditListScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(EditListScreen.this.toString(this.holder.getValue())), left + 5, top + 6, 0xFFFFFF);
-            this.editButton.visible = true;
             this.editButton.x = left + width - 65;
             this.editButton.y = top;
             this.editButton.render(poseStack, mouseX, mouseY, partialTicks);
-            this.deleteButton.visible = true;
             this.deleteButton.x = left + width - 21;
             this.deleteButton.y = top;
             this.deleteButton.render(poseStack, mouseX, mouseY, partialTicks);

@@ -30,6 +30,11 @@ public class EditStringScreen extends Screen {
     }
 
     @Override
+    public void onClose() {
+        this.minecraft.setScreen(this.lastScreen);
+    }
+
+    @Override
     protected void init() {
         final Button doneButton = this.addRenderableWidget(new Button(this.width / 2 - 1 - 150, this.height / 2 + 3, 148, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.textField.getValue());
