@@ -1,12 +1,11 @@
 package com.mrcrayfish.configured.client.screen;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mrcrayfish.configured.client.screen.widget.ConfigEditBox;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TextComponent;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -19,7 +18,7 @@ public class EditStringScreen extends Screen {
     private String value;
     private final Predicate<String> validator;
     private final Consumer<String> onSave;
-    private EditBox textField;
+    private ConfigEditBox textField;
 
     public EditStringScreen(Screen lastScreen, Component title, String value, Predicate<String> validator, Consumer<String> onSave) {
         super(title);
@@ -43,26 +42,16 @@ public class EditStringScreen extends Screen {
         this.addRenderableWidget(new Button(this.width / 2 + 3, this.height / 2 + 3, 148, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.textField = new EditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20, TextComponent.EMPTY) {
-
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                // left click clears text
-                if (this.isVisible() && button == 1) {
-                    this.setValue("");
-                }
-                return super.mouseClicked(mouseX, mouseY, button);
-            }
-        };
+        this.textField = new ConfigEditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20);
         this.textField.setMaxLength(32500);
         this.textField.setResponder(input -> {
             // save this as init is re-run on screen resizing
             this.value = input;
             if (this.validator.test(input)) {
-                this.textField.setTextColor(14737632);
+                this.textField.markInvalid(false);
                 doneButton.active = true;
             } else {
-                this.textField.setTextColor(!input.isEmpty() ? 16711680 : 14737632);
+                this.textField.markInvalid(true);
                 doneButton.active = false;
             }
         });

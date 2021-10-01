@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import com.mrcrayfish.configured.Configured;
+import com.mrcrayfish.configured.client.screen.widget.ConfigEditBox;
 import com.mrcrayfish.configured.client.screen.widget.IconButton;
 import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import joptsimple.internal.Strings;
@@ -57,11 +58,10 @@ public abstract class ConfigScreen extends Screen {
      * same for all sub menus
      */
     final Map<Object, IEntryUnit> valueToUnit;
-    private final int configListRowWidth = 260;
-    private ConfigList configList;
+    private ConfigList list;
     EditBox searchTextField;
     @Nullable
-    private EditBox activeTextField;
+    private ConfigEditBox activeTextField;
     @Nullable
     private List<FormattedCharSequence> activeTooltip;
     private int tooltipTicks;
@@ -138,7 +138,7 @@ public abstract class ConfigScreen extends Screen {
             // description copied from modconfig.type enum comments
             Component comment = new TranslatableComponent(String.format("configured.gui.type.%s", typeExtension));
             List<FormattedCharSequence> description = Stream.of(title, comment).map(component -> this.font.split(component, 200)).flatMap(List::stream).toList();
-            return new TypeEntry(title, description);
+            return new TitleEntry(title, description);
         }
 
         @Override
@@ -251,7 +251,6 @@ public abstract class ConfigScreen extends Screen {
             List<Screen> lastScreens = this.getLastScreens();
             final int maxSize = 5;
             List<Button> buttons = Lists.newLinkedList();
-            final List<FormattedCharSequence> tooltip = Lists.newArrayList(CommonComponents.GUI_BACK.getVisualOrderText());
             for (int i = 0, size = Math.min(maxSize, lastScreens.size()); i < size; i++) {
                 Screen screen = lastScreens.get(size - 1 - i);
                 final boolean otherScreen = screen != this;
@@ -259,10 +258,6 @@ public abstract class ConfigScreen extends Screen {
                 buttons.add(new Button(0, 1, Sub.this.font.width(title) + 4, 20, title, button -> {
                     if (otherScreen) {
                         Sub.this.minecraft.setScreen(screen);
-                    }
-                }, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
-                    if (otherScreen && button.active) {
-                        this.setActiveTooltip(tooltip);
                     }
                 }) {
 
@@ -329,9 +324,9 @@ public abstract class ConfigScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.configList = new ConfigList(this.getConfigListEntries(""));
-        this.addWidget(this.configList);
-        this.searchTextField = new ConfigSearchBox(this.font, this.width / 2 - 109, 22, 218, 20, TextComponent.EMPTY);
+        this.list = new ConfigList(this.getConfigListEntries(""));
+        this.addWidget(this.list);
+        this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 109, 22, 218, 20, () -> this.activeTextField, activeTextField -> this.activeTextField = activeTextField);
         this.searchTextField.setResponder(query -> {
             this.refreshConfigListEntries(query);
             this.onSearchFieldChanged(query.isEmpty());
@@ -349,8 +344,8 @@ public abstract class ConfigScreen extends Screen {
     }
 
     void refreshConfigListEntries(String query) {
-        if (this.configList != null) {
-            this.configList.replaceEntries(this.getConfigListEntries(query.toLowerCase(Locale.ROOT).trim()));
+        if (this.list != null) {
+            this.list.replaceEntries(this.getConfigListEntries(query.toLowerCase(Locale.ROOT).trim()));
         }
     }
 
@@ -379,7 +374,7 @@ public abstract class ConfigScreen extends Screen {
         List<FormattedCharSequence> lastTooltip = this.activeTooltip;
         this.activeTooltip = null;
         this.renderBackground(poseStack);
-        this.configList.render(poseStack, mouseX, mouseY, partialTicks);
+        this.list.render(poseStack, mouseX, mouseY, partialTicks);
         this.searchTextField.render(poseStack, mouseX, mouseY, partialTicks);
         this.drawBaseTitle(poseStack);
         super.render(poseStack, mouseX, mouseY, partialTicks);
@@ -518,7 +513,12 @@ public abstract class ConfigScreen extends Screen {
         } else if (value instanceof Enum<?>) {
             return new EnumListEntry((ConfigEntryUnit<List<Enum<?>>>) entryUnit, (Class<Enum<?>>) value.getClass());
         } else if (value instanceof String) {
-            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, Function.identity());
+            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, s -> {
+                if (s.isEmpty()) {
+                    throw new IllegalArgumentException("string must not be empty");
+                }
+                return s;
+            });
         } else {
             // string list with warning screen
             return new DangerousListEntry((ConfigEntryUnit<List<String>>) entryUnit);
@@ -802,7 +802,7 @@ public abstract class ConfigScreen extends Screen {
         @Override
         public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
 
-            if (ConfigScreen.this.configList != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.configList.getRowLeft() + ConfigScreen.this.configList.getRowWidth() - 67) {
+            if (ConfigScreen.this.list != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
                 ConfigScreen.this.setActiveTooltip(this.getTooltip());
             }
         }
@@ -841,8 +841,8 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    public class TypeEntry extends Entry {
-        public TypeEntry(Component title, List<FormattedCharSequence> description) {
+    public class TitleEntry extends Entry {
+        public TitleEntry(Component title, List<FormattedCharSequence> description) {
             super(new TextComponent("").append(title).withStyle(ChatFormatting.BOLD), description);
         }
 
@@ -863,8 +863,8 @@ public abstract class ConfigScreen extends Screen {
 
         public CategoryEntry(Component title, ConfigScreen screen) {
             super(title, null);
-            final FormattedText truncatedText = this.getTruncatedText(ConfigScreen.this.font, title, ConfigScreen.this.configListRowWidth - 4, Style.EMPTY.withBold(true));
-            this.button = new Button(10, 5, ConfigScreen.this.configListRowWidth, 20, new TextComponent(truncatedText.getString()).withStyle(ChatFormatting.BOLD), button -> ConfigScreen.this.minecraft.setScreen(screen));
+            final FormattedText truncatedText = this.getTruncatedText(ConfigScreen.this.font, title, 260 - 4, Style.EMPTY.withBold(true));
+            this.button = new Button(10, 5, 260, 20, new TextComponent(truncatedText.getString()).withStyle(ChatFormatting.BOLD), button -> ConfigScreen.this.minecraft.setScreen(screen));
         }
 
         @Override
@@ -911,7 +911,7 @@ public abstract class ConfigScreen extends Screen {
             // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
             super(configEntryUnit.getDisplayTitle(), makeTooltip(ConfigScreen.this.font, configEntryUnit, toString));
             this.configEntryUnit = configEntryUnit;
-            FormattedText truncatedTitle = this.getTruncatedText(ConfigScreen.this.font, this.getTitle(), ConfigScreen.this.configListRowWidth - 70, Style.EMPTY);
+            FormattedText truncatedTitle = this.getTruncatedText(ConfigScreen.this.font, this.getTitle(), 260 - 70, Style.EMPTY);
             this.visualTitle = Language.getInstance().getVisualOrder(truncatedTitle);
             final List<FormattedCharSequence> formattedCharSequences = ConfigScreen.this.font.split(new TranslatableComponent("configured.gui.tooltip.reset"), 200);
             this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, button -> {
@@ -1016,18 +1016,11 @@ public abstract class ConfigScreen extends Screen {
 
     @Environment(EnvType.CLIENT)
     public class NumberEntry<T> extends ConfigEntry<T> {
-        private final EditBox textField;
+        private final ConfigEditBox textField;
 
         public NumberEntry(ConfigEntryUnit<T> configEntryUnit, Function<String, T> parser) {
             super(configEntryUnit);
-            this.textField = new EditBox(ConfigScreen.this.font, 0, 0, 42, 18, TextComponent.EMPTY) {
-
-                @Override
-                public void setFocus(boolean focused) {
-                    super.setFocus(focused);
-                    ConfigScreen.this.activeTextField = focused ? this : null;
-                }
-            };
+            this.textField = new ConfigEditBox(ConfigScreen.this.font, 0, 0, 42, 18, () -> ConfigScreen.this.activeTextField, activeTextField -> ConfigScreen.this.activeTextField = activeTextField);
             this.textField.setResponder(input -> {
                 T number = null;
                 try {
@@ -1037,15 +1030,12 @@ public abstract class ConfigScreen extends Screen {
                     }
                 } catch (NumberFormatException ignored) {
                 }
-
                 if (number != null) {
-                    // white text color
-                    this.textField.setTextColor(14737632);
+                    this.textField.markInvalid(false);
                     configEntryUnit.setCurrentValue(number);
                     this.onConfigValueChanged(number, false);
                 } else {
-                    // red text color
-                    this.textField.setTextColor(16711680);
+                    this.textField.markInvalid(true);
                     configEntryUnit.resetCurrentValue();
                     // provides an easy way to make text field usable again, even though default value is already set in background
                     this.resetButton.active = true;
@@ -1111,7 +1101,7 @@ public abstract class ConfigScreen extends Screen {
             this.button = new Button(10, 5, 44, 20, new TranslatableComponent("configured.gui.edit"), button -> {
                 // safety precaution for dealing with lists
                 try {
-                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(configEntryUnit.getTitle(), type, configEntryUnit.getCurrentValue(), configEntryUnit.getValueSpec(), currentValue -> {
+                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(type.getSimpleName(), configEntryUnit.getCurrentValue(), configEntryUnit.getValueSpec(), currentValue -> {
                         configEntryUnit.setCurrentValue(currentValue);
                         this.onConfigValueChanged(currentValue, false);
                     }));
@@ -1123,7 +1113,7 @@ public abstract class ConfigScreen extends Screen {
             this.children().add(this.button);
         }
 
-        abstract Screen makeEditScreen(Component titleIn, Class<?> type, T currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<T> onSave);
+        abstract Screen makeEditScreen(String type, T currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<T> onSave);
 
         @Override
         public void render(PoseStack matrixStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
@@ -1141,8 +1131,8 @@ public abstract class ConfigScreen extends Screen {
         }
 
         @Override
-        Screen makeEditScreen(Component titleIn, Class<?> type, Enum<?> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<Enum<?>> onSave) {
-            return new EditEnumScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.select", type.getSimpleName()), currentValue, currentValue.getDeclaringClass().getEnumConstants(), valueSpec::test, onSave);
+        Screen makeEditScreen(String type, Enum<?> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<Enum<?>> onSave) {
+            return new EditEnumScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.select", type), currentValue, currentValue.getDeclaringClass().getEnumConstants(), valueSpec::test, onSave);
         }
     }
 
@@ -1153,8 +1143,8 @@ public abstract class ConfigScreen extends Screen {
         }
 
         @Override
-        Screen makeEditScreen(Component titleIn, Class<?> type, String currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<String> onSave) {
-            return new EditStringScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.edit", type.getSimpleName()), currentValue, valueSpec::test, onSave);
+        Screen makeEditScreen(String type, String currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<String> onSave) {
+            return new EditStringScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.edit", type), currentValue, valueSpec::test, onSave);
         }
     }
 
@@ -1173,20 +1163,24 @@ public abstract class ConfigScreen extends Screen {
             this.fromString = fromString;
         }
 
-        @SuppressWarnings("unchecked")
         @Override
-        Screen makeEditScreen(Component titleIn, Class<?> type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
-            return new EditListScreen<>(ConfigScreen.this, titleIn, (Class<T>) type, currentValue, valueSpec, onSave) {
-                @Override
-                String toString(Object value) {
-                    return ListEntry.this.toString.apply(value);
+        Screen makeEditScreen(String type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
+            return new EditListScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.list.edit", type), currentValue.stream()
+                    .map(this.toString)
+                    .collect(Collectors.toList()), input -> {
+                try {
+                    this.fromString.apply(input);
+                    return true;
+                } catch (RuntimeException ignored) {
                 }
-
-                @Override
-                T fromString(String value) {
-                    return ListEntry.this.fromString.apply(value);
-                }
-            };
+                return false;
+            }, list -> {
+                final List<T> values = list.stream()
+                        .map(this.fromString)
+                        .collect(Collectors.toList());
+                valueSpec.correct(valueSpec);
+                onSave.accept(values);
+            });
         }
     }
 
@@ -1203,15 +1197,20 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     public class DangerousListEntry extends ListEntry<String> {
         public DangerousListEntry(ConfigEntryUnit<List<String>> configEntryUnit) {
-            super(configEntryUnit, String.class, Function.identity());
+            super(configEntryUnit, String.class, s -> {
+                if (s.isEmpty()) {
+                    throw new IllegalArgumentException("string must not be empty");
+                }
+                return s;
+            });
         }
 
         @Override
-        Screen makeEditScreen(Component titleIn, Class<?> type, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
+        Screen makeEditScreen(String type, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
             // displays a warning screen when editing a list of unknown type before allowing the edit
             return new ConfirmScreen(result -> {
                 if (result) {
-                    ConfigScreen.this.minecraft.setScreen(super.makeEditScreen(titleIn, type, currentValue, valueSpec, onSave));
+                    ConfigScreen.this.minecraft.setScreen(super.makeEditScreen(type, currentValue, valueSpec, onSave));
                 } else {
                     ConfigScreen.this.minecraft.setScreen(ConfigScreen.this);
                 }
@@ -1240,7 +1239,7 @@ public abstract class ConfigScreen extends Screen {
 
         @Override
         public int getRowWidth() {
-            return ConfigScreen.this.configListRowWidth;
+            return 260;
         }
 
         @Override
@@ -1251,7 +1250,7 @@ public abstract class ConfigScreen extends Screen {
         }
 
         private void renderToolTips(PoseStack poseStack, int mouseX, int mouseY) {
-            if (ConfigScreen.this.configList != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.configList.getRowLeft() + ConfigScreen.this.configList.getRowWidth() - 67) {
+            if (ConfigScreen.this.list != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
                 ConfigScreen.Entry entry = this.getEntryAtPosition(mouseX, mouseY);
                 if (entry != null) {
                     ConfigScreen.this.setActiveTooltip(entry.getTooltip());
@@ -1359,45 +1358,6 @@ public abstract class ConfigScreen extends Screen {
             RenderSystem.disableBlend();
 
             this.renderToolTips(poseStack, mouseX, mouseY);
-        }
-    }
-
-    /**
-     * A custom implementation of the text field widget to help reset the focus when it's used
-     * in an option list. This class is specific to {@link ConfigScreen} and won't work anywhere
-     * else.
-     */
-    @Environment(EnvType.CLIENT)
-    public class ConfigSearchBox extends EditBox {
-
-        private static final MutableComponent SEARCH_COMPONENT = new TranslatableComponent("configured.gui.search").withStyle(ChatFormatting.GRAY);
-
-        public ConfigSearchBox(Font font, int x, int y, int width, int height, Component value) {
-            super(font, x, y, width, height, value);
-        }
-
-        @Override
-        public void setFocus(boolean focused) {
-            super.setFocus(focused);
-            ConfigScreen.this.activeTextField = focused ? this : null;
-        }
-
-        @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            // left click clears text
-            // only works for search field as entries inside of vanilla selection lists seem to be unable to handle left clicks properly
-            if (this.isVisible() && button == 1) {
-                this.setValue("");
-            }
-            return super.mouseClicked(mouseX, mouseY, button);
-        }
-
-        @Override
-        public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTime) {
-            super.renderButton(poseStack, mouseX, mouseY, partialTime);
-            if (this.isVisible() && !this.isFocused() && this.getValue().isEmpty()) {
-                ConfigScreen.this.font.draw(poseStack, SEARCH_COMPONENT, this.x + 4, this.y + 6, 16777215);
-            }
         }
     }
 
