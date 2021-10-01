@@ -14,16 +14,14 @@ import java.util.function.Predicate;
 /**
  * Author: MrCrayfish
  */
-public class EditStringScreen extends Screen
-{
+public class EditStringScreen extends Screen {
     private final Screen lastScreen;
     private String value;
     private final Predicate<String> validator;
     private final Consumer<String> onSave;
     private EditBox textField;
 
-    public EditStringScreen(Screen lastScreen, Component title, String value, Predicate<String> validator, Consumer<String> onSave)
-    {
+    public EditStringScreen(Screen lastScreen, Component title, String value, Predicate<String> validator, Consumer<String> onSave) {
         super(title);
         this.lastScreen = lastScreen;
         this.value = value;
@@ -32,8 +30,7 @@ public class EditStringScreen extends Screen
     }
 
     @Override
-    protected void init()
-    {
+    protected void init() {
         final Button doneButton = this.addRenderableWidget(new Button(this.width / 2 - 1 - 150, this.height / 2 + 3, 148, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.textField.getValue());
             this.minecraft.setScreen(this.lastScreen);
@@ -41,7 +38,17 @@ public class EditStringScreen extends Screen
         this.addRenderableWidget(new Button(this.width / 2 + 3, this.height / 2 + 3, 148, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.textField = new EditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20, TextComponent.EMPTY);
+        this.textField = new EditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20, TextComponent.EMPTY) {
+
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                // left click clears text
+                if (this.isVisible() && button == 1) {
+                    this.setValue("");
+                }
+                return super.mouseClicked(mouseX, mouseY, button);
+            }
+        };
         this.textField.setMaxLength(32500);
         this.textField.setResponder(input -> {
             // save this as init is re-run on screen resizing
@@ -59,8 +66,7 @@ public class EditStringScreen extends Screen
     }
 
     @Override
-    public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks)
-    {
+    public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
         this.renderBackground(poseStack);
         this.textField.render(poseStack, mouseX, mouseY, partialTicks);
         drawCenteredString(poseStack, this.font, this.title, this.width / 2, this.height / 2 - 40, 0xFFFFFF);

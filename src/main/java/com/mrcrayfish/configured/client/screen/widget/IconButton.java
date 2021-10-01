@@ -14,29 +14,26 @@ import net.minecraft.util.Mth;
 /**
  * Author: MrCrayfish
  */
-public class IconButton extends Button
-{
-    public static final ResourceLocation ICONS = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
+public class IconButton extends Button {
+    public static final ResourceLocation ICON_LOCATION = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
 
-    private int u, v;
+    private final int u;
+    private final int v;
 
-    public IconButton(int x, int y, int width, int height, int u, int v, Button.OnPress pressedAction)
-    {
-        super(x, y, width, height, TextComponent.EMPTY, pressedAction);
+    public IconButton(int x, int y, int width, int height, int u, int v, Button.OnPress onPress) {
+        super(x, y, width, height, TextComponent.EMPTY, onPress);
         this.u = u;
         this.v = v;
     }
 
-    public IconButton(int x, int y, int width, int height, int u, int v, Button.OnTooltip onTooltip, Button.OnPress pressedAction)
-    {
-        super(x, y, width, height, TextComponent.EMPTY, pressedAction, onTooltip);
+    public IconButton(int x, int y, int width, int height, int u, int v, OnPress onPress, OnTooltip onTooltip) {
+        super(x, y, width, height, TextComponent.EMPTY, onPress, onTooltip);
         this.u = u;
         this.v = v;
     }
 
     @Override
-    public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTicks)
-    {
+    public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
         Minecraft minecraft = Minecraft.getInstance();
         Font font = minecraft.font;
         RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
@@ -51,12 +48,12 @@ public class IconButton extends Button
         this.renderBg(poseStack, minecraft, mouseX, mouseY);
         int color = -1;
         drawCenteredString(poseStack, font, this.getMessage(), this.x + this.width / 2, this.y + (this.height - 8) / 2, color | Mth.ceil(this.alpha * 255.0F) << 24);
-        RenderSystem.setShaderTexture(0, ICONS);
+        RenderSystem.setShaderTexture(0, ICON_LOCATION);
         float brightness = this.active ? 1.0F : 0.5F;
         RenderSystem.setShaderColor(brightness, brightness, brightness, this.alpha);
         blit(poseStack, this.x + 5, this.y + 4, this.getBlitOffset(), this.u, this.v, 11, 11, 32, 32);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, this.alpha);
-        if (this.active && this.isHovered()) {
+        if (this.isHovered()) {
             this.renderToolTip(poseStack, mouseX, mouseY);
         }
     }

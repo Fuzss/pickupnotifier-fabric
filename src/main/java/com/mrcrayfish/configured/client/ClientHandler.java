@@ -5,6 +5,7 @@ import com.mrcrayfish.configured.client.screen.ConfigScreen;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.TextComponent;
@@ -40,15 +41,18 @@ public class ClientHandler {
     public static Function<Screen, ConfigScreen> createConfigScreen(final String modId, String displayName, ResourceLocation optionsBackground) {
         Map<ModConfig.Type, List<ForgeConfigSpec>> typeToConfigs = Maps.newEnumMap(ModConfig.Type.class);
         ConfigTracker.INSTANCE.configSets().forEach((type, modConfigs) -> {
-            // configData for server configs will only be set when on a server (internal or dedicated)
-            final Set<ModConfig> configs = modConfigs.stream()
-                    .filter(modConfig -> modConfig.getModId().equals(modId) && modConfig.getConfigData() != null)
-                    .collect(Collectors.toSet());
-            if (!configs.isEmpty()) {
-                typeToConfigs.put(type, configs.stream()
-                        .filter(config -> config.getSpec() instanceof ForgeConfigSpec)
-                        .map(config -> (ForgeConfigSpec) config.getSpec())
-                        .toList());
+            // exclude server config in multiplayer as local changes won't match the server anymore
+            if (Minecraft.getInstance().isLocalServer() || type != ModConfig.Type.SERVER) {
+                // configData for server configs will only be set when in a world
+                final Set<ModConfig> configs = modConfigs.stream()
+                        .filter(modConfig -> modConfig.getModId().equals(modId) && modConfig.getConfigData() != null)
+                        .collect(Collectors.toSet());
+                if (!configs.isEmpty()) {
+                    typeToConfigs.put(type, configs.stream()
+                            .filter(config -> config.getSpec() instanceof ForgeConfigSpec)
+                            .map(config -> (ForgeConfigSpec) config.getSpec())
+                            .toList());
+                }
             }
         });
 

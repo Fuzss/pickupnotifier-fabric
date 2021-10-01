@@ -29,19 +29,19 @@ import java.util.stream.Collectors;
 /**
  * Author: MrCrayfish
  */
-public abstract class EditListScreen<T> extends Screen
-{
+@SuppressWarnings("ConstantConditions")
+public abstract class EditListScreen<T> extends Screen {
     private final Screen lastScreen;
     private final Class<T> type;
     private final List<MutableObject<T>> values = new ArrayList<>();
     private final ForgeConfigSpec.ValueSpec valueSpec;
     private final Consumer<List<T>> onSave;
-    private EditListScreenList screenList;
+    private EditList list;
     private List<? extends FormattedCharSequence> activeTooltip;
+    private int tooltipTicks;
 
-    public EditListScreen(Screen lastScreen, Component titleIn, Class<T> type, List<T> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave)
-    {
-        super(titleIn);
+    public EditListScreen(Screen lastScreen, Component titleIn, Class<T> type, List<T> listValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
+        super(new TranslatableComponent("configured.gui.list.edit", titleIn));
         this.lastScreen = lastScreen;
         this.type = type;
         this.values.addAll(listValue.stream().map(MutableObject::new).collect(Collectors.toList()));
@@ -54,21 +54,20 @@ public abstract class EditListScreen<T> extends Screen
     abstract T fromString(String value);
 
     @Override
-    protected void init()
-    {
-        this.screenList = new EditListScreenList();
-        this.addWidget(this.screenList);
-        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 29, 100, 20, CommonComponents.GUI_DONE, button -> {
+    protected void init() {
+        this.list = new EditList();
+        this.addWidget(this.list);
+        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
             List<T> newValues = this.values.stream().map(MutableObject::getValue).collect(Collectors.toList());
             this.valueSpec.correct(newValues);
             this.onSave.accept(newValues);
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 29, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
-            this.minecraft.setScreen(makeEditListScreen("configured.gui.value.add", "", input -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
+            this.minecraft.setScreen(this.makeEditListScreen("configured.gui.value.add", "", input -> {
                 MutableObject<T> holder = new MutableObject<>(this.fromString(input));
                 this.values.add(holder);
-                this.screenList.addEntry(new ListScreenEntry(this.screenList, holder));
+                this.list.addEntry(new EditListEntry(this.list, holder));
             }));
         }));
         this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> {
@@ -89,77 +88,79 @@ public abstract class EditListScreen<T> extends Screen
 
     @Override
     public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
+        List<? extends FormattedCharSequence> lastTooltip = this.activeTooltip;
         this.activeTooltip = null;
         this.renderBackground(poseStack);
-        this.screenList.render(poseStack, mouseX, mouseY, partialTicks);
+        this.list.render(poseStack, mouseX, mouseY, partialTicks);
         drawCenteredString(poseStack, this.font, this.title, this.width / 2, 14, 0xFFFFFF);
         super.render(poseStack, mouseX, mouseY, partialTicks);
-        if (this.activeTooltip != null) {
+        if (this.activeTooltip != lastTooltip) {
+            this.tooltipTicks = 0;
+        }
+        if (this.activeTooltip != null && this.tooltipTicks >= 10) {
             this.renderTooltip(poseStack, this.activeTooltip, mouseX, mouseY);
         }
     }
 
+    @Override
+    public void tick() {
+        // makes tooltips not appear immediately
+        if (this.tooltipTicks < 10) {
+            this.tooltipTicks++;
+        }
+    }
+
     @Environment(EnvType.CLIENT)
-    public class EditListScreenList extends ContainerObjectSelectionList<ListScreenEntry>
-    {
-        public EditListScreenList()
-        {
+    public class EditList extends ContainerObjectSelectionList<EditListEntry> {
+        public EditList() {
             super(EditListScreen.this.minecraft, EditListScreen.this.width, EditListScreen.this.height, 36, EditListScreen.this.height - 36, 24);
             EditListScreen.this.values.forEach(value -> {
-                this.addEntry(new ListScreenEntry(this, value));
+                this.addEntry(new EditListEntry(this, value));
             });
         }
 
         @Override
-        protected int getScrollbarPosition()
-        {
+        protected int getScrollbarPosition() {
             return this.width / 2 + 144;
         }
 
         @Override
-        public int getRowWidth()
-        {
+        public int getRowWidth() {
             return 260;
         }
 
         @Override
-        public int addEntry(ListScreenEntry entry)
-        {
+        public int addEntry(EditListEntry entry) {
             return super.addEntry(entry);
         }
 
         @Override
-        public boolean removeEntry(ListScreenEntry entry)
-        {
+        public boolean removeEntry(EditListEntry entry) {
             return super.removeEntry(entry);
         }
 
         @Override
-        public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks)
-        {
+        public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
             super.render(poseStack, mouseX, mouseY, partialTicks);
             this.children().forEach(entry ->
             {
                 entry.children().forEach(o ->
                 {
-                    if(o instanceof AbstractSliderButton)
-                    {
-                        ((AbstractSliderButton)o).renderToolTip(poseStack, mouseX, mouseY);
+                    if (o instanceof AbstractSliderButton) {
+                        ((AbstractSliderButton) o).renderToolTip(poseStack, mouseX, mouseY);
                     }
                 });
             });
         }
     }
 
-    private class ListScreenEntry extends ContainerObjectSelectionList.Entry<ListScreenEntry>
-    {
+    private class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
         private final MutableObject<T> holder;
-        private final EditListScreenList list;
+        private final EditList list;
         private final Button editButton;
         private final Button deleteButton;
 
-        private ListScreenEntry(EditListScreenList list, MutableObject<T> holder)
-        {
+        private EditListEntry(EditList list, MutableObject<T> holder) {
             this.list = list;
             this.holder = holder;
             this.editButton = new Button(0, 0, 42, 20, new TranslatableComponent("configured.gui.edit"), onPress -> {
@@ -167,19 +168,19 @@ public abstract class EditListScreen<T> extends Screen
                     this.holder.setValue(EditListScreen.this.fromString(input));
                 }));
             });
-            this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, (button, matrixStack, mouseX, mouseY) -> {
-                if(button.active && button.isHovered()) {
-                    EditListScreen.this.activeTooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
-                }
-            }, button -> {
+            final List<FormattedCharSequence> tooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
+            this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, button -> {
                 EditListScreen.this.values.remove(this.holder);
                 this.list.removeEntry(this);
+            }, (button, matrixStack, mouseX, mouseY) -> {
+                if (button.active) {
+                    EditListScreen.this.activeTooltip = tooltip;
+                }
             });
         }
 
         @Override
-        public void render(PoseStack poseStack, int x, int top, int left, int width, int height, int mouseX, int mouseY, boolean selected, float partialTicks)
-        {
+        public void render(PoseStack poseStack, int x, int top, int left, int width, int height, int mouseX, int mouseY, boolean selected, float partialTicks) {
             EditListScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(EditListScreen.this.toString(this.holder.getValue())), left + 5, top + 6, 0xFFFFFF);
             this.editButton.visible = true;
             this.editButton.x = left + width - 65;
@@ -192,26 +193,21 @@ public abstract class EditListScreen<T> extends Screen
         }
 
         @Override
-        public List<? extends GuiEventListener> children()
-        {
+        public List<? extends GuiEventListener> children() {
             return ImmutableList.of(this.editButton, this.deleteButton);
         }
 
         @Override
-        public List<? extends NarratableEntry> narratables()
-        {
-            return ImmutableList.of(new NarratableEntry()
-            {
-                public NarratableEntry.NarrationPriority narrationPriority()
-                {
+        public List<? extends NarratableEntry> narratables() {
+            return ImmutableList.of(new NarratableEntry() {
+                public NarratableEntry.NarrationPriority narrationPriority() {
                     return NarratableEntry.NarrationPriority.HOVERED;
                 }
 
-                public void updateNarration(NarrationElementOutput output)
-                {
-                    output.add(NarratedElementType.TITLE, EditListScreen.this.toString(ListScreenEntry.this.holder.getValue()));
+                public void updateNarration(NarrationElementOutput output) {
+                    output.add(NarratedElementType.TITLE, EditListScreen.this.toString(EditListEntry.this.holder.getValue()));
                 }
-            }, ListScreenEntry.this.editButton, ListScreenEntry.this.deleteButton);
+            }, EditListEntry.this.editButton, EditListEntry.this.deleteButton);
         }
     }
 }

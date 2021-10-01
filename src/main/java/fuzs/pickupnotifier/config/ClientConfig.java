@@ -109,7 +109,7 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
 
         private DisplayConfig() {
 
-            super("Boolean-List with an extremly long title so we can see what might happen when there is not enough space available to display it Hopefully it will trigger what we want to see I think we can stop now");
+            super("display");
         }
 
         @Override
@@ -127,15 +127,29 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
         }
 
         private void deleteThisWhenDone(ForgeConfigSpec.Builder builder) {
-            register(builder.comment("A list of ints.").define("Int-List", Lists.newArrayList(1, 2, 3, 4, 5)), v -> {
-                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Integer);
-            });
-            register(builder.comment("A list of bools. This description is the longest one you have ever seen. Maybe not until this point, but just wait what is about to come. So much great words here, it is unbelievable. Can we go even further? Maybe we can. I hope we can. It is so amazing how much text fits in here. Let us see what happens.").defineList("Boolean-List with an extremly long title so we can see what might happen when there is not enough space available to display it Hopefully it will trigger what we want to see I think we can stop now", Lists.newArrayList(false, true, false), o -> true), v -> {
-                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Boolean);
-            });
-            register(builder.comment("A list of enums.").defineList("Enum-List", Lists.newArrayList(ChatFormatting.WHITE, ChatFormatting.BLACK, ChatFormatting.BLUE, ChatFormatting.ITALIC), o -> true), v -> {
-                if (!v.isEmpty()) Configured.LOGGER.info(v.get(0) instanceof Enum<?>);
-            });
+            builder.push("messy");
+            builder.comment("A list of ints.").define("Int-List", Lists.newArrayList(1, 2, 3, 4, 5));
+            builder.comment("A list of longs.").define("Long-List", Lists.newArrayList(1L, 200L, 3L, 4, 5));
+            builder.comment("A list of longs #2.").define("Long-List #2", Lists.newArrayList(1L, 2L, 3L, 400L, 5L));
+            builder.comment("A list of ints.").define("Double-List", Lists.newArrayList(1.0, 2.0, 3.0, 4.0, 5.0));
+            builder.comment("A list of STRINGS.").define("String-List", Lists.newArrayList("one", "two", "four"));
+            builder.comment("A list of bools.").defineList("Boolean-List", Lists.newArrayList(false, true, false), o -> true);
+            builder.comment("A list of enums.").defineList("Enum-List", Lists.newArrayList(ChatFormatting.WHITE, ChatFormatting.BLACK, ChatFormatting.BLUE, ChatFormatting.ITALIC), o -> true);
+            builder.comment("Percentage of relative screen height entries are allowed to fill at max.").define("Maximum Height", "true", "true"::equals);
+            builder.push("category1");
+            builder.push("category2");
+            builder.push("category3");
+            builder.push("category4");
+            builder.push("category5");
+            builder.push("category6");
+            builder.comment("Percentage of relative screen height entries are allowed to fill at max.").define("Maximum Height", "true", "true"::equals);
+            builder.pop();
+            builder.pop();
+            builder.pop();
+            builder.pop();
+            builder.pop();
+            builder.pop();
+            builder.pop();
         }
 
     }
