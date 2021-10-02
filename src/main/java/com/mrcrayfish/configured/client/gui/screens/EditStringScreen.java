@@ -37,14 +37,14 @@ public class EditStringScreen extends Screen {
 
     @Override
     protected void init() {
-        final Button doneButton = this.addRenderableWidget(new Button(this.width / 2 - 1 - 150, this.height / 2 + 3, 148, 20, CommonComponents.GUI_DONE, button -> {
+        final Button doneButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height / 2 + 3, 150, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.textField.getValue());
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 + 3, this.height / 2 + 3, 148, 20, CommonComponents.GUI_CANCEL, button -> {
+        this.addRenderableWidget(new Button(this.width / 2 + 4, this.height / 2 + 3, 150, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.textField = new ConfigEditBox(this.font, this.width / 2 - 150, this.height / 2 - 25, 300, 20);
+        this.textField = new ConfigEditBox(this.font, this.width / 2 - 153, this.height / 2 - 25, 306, 20);
         this.textField.setMaxLength(32500);
         this.textField.setCanLoseFocus(false);
         this.textField.setResponder(input -> {

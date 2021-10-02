@@ -10,20 +10,15 @@ import com.mrcrayfish.configured.client.gui.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import com.mrcrayfish.configured.client.gui.widget.ConfigEditBox;
 import com.mrcrayfish.configured.client.gui.widget.IconButton;
-import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ContainerObjectSelectionList;
-import net.minecraft.client.gui.components.ImageButton;
+import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
-import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.locale.Language;
@@ -37,7 +32,6 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @SuppressWarnings("ConstantConditions")
 @Environment(EnvType.CLIENT)
@@ -45,7 +39,7 @@ public abstract class ConfigScreen extends Screen {
     public static final ResourceLocation LOGO_TEXTURE = new ResourceLocation(Configured.MODID, "textures/gui/logo.png");
 
     final Screen lastScreen;
-    private final ResourceLocation background;
+    final ResourceLocation background;
     /**
      * entries used when searching
      * includes entries from this screen {@link #screenEntries} and from all sub screens of this
@@ -63,7 +57,7 @@ public abstract class ConfigScreen extends Screen {
      */
     final Map<Object, IEntryData> valueToData;
     private ConfigList list;
-    ConfigEditBox searchTextField;
+    EditBox searchTextField;
     @Nullable
     private ConfigEditBox activeTextField;
     @Nullable
@@ -111,8 +105,9 @@ public abstract class ConfigScreen extends Screen {
          * only used for saving when closing screen
          */
         private final ForgeConfigSpec spec;
-        // done, cancel, restore, back (back only appears when search field is not empty)
-        private final Button[] buttons = new Button[4];
+        private Button doneButton;
+        private Button cancelButton;
+        private Button backButton;
 
         private Main(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec, Map<Object, IEntryData> valueToData) {
             super(lastScreen, title, background, spec.getValues(), valueToData);
@@ -122,53 +117,22 @@ public abstract class ConfigScreen extends Screen {
         @Override
         protected void init() {
             super.init();
-            this.buttons[0] = this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
+            this.doneButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> {
                 this.valueToData.values().forEach(IEntryData::saveConfigValue);
                 this.spec.save();
                 this.minecraft.setScreen(this.lastScreen);
             }));
-            this.buttons[1] = this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 28, 100, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
-            this.buttons[2] = this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.restore"), button -> {
-                Screen confirmScreen = this.makeConfirmationScreen(result -> {
-                    if (result) {// Resets all config values
-                        this.valueToData.values().forEach(IEntryData::resetCurrentValue);
-                        // Updates the current entries to process UI changes
-                        this.refreshConfigListEntries("");
-                    }
-                    this.minecraft.setScreen(this);
-                }, new TranslatableComponent("configured.gui.message.restore"));
-                this.minecraft.setScreen(confirmScreen);
-            }));
-            // Call during init to avoid the button flashing active
-            this.updateRestoreButton();
+            this.cancelButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
             // button is made visible when search field is active
-            this.buttons[3] = this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 28, 200, 20, CommonComponents.GUI_BACK, button -> this.searchTextField.setValue("")));
-            if (this.searchTextField != null) {
-                this.onSearchFieldChanged(this.searchTextField.getValue().isEmpty());
-            }
+            this.backButton = this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 28, 200, 20, CommonComponents.GUI_BACK, button -> this.searchTextField.setValue("")));
+            this.onSearchFieldChanged(this.searchTextField.getValue().trim().isEmpty());
         }
 
         @Override
-        void onSearchFieldChanged(boolean isEmpty) {
-            Stream.of(this.buttons)
-                    .limit(3)
-                    .filter(Objects::nonNull)
-                    .forEach(button -> button.visible = isEmpty);
-            if (this.buttons[3] != null) {
-                this.buttons[3].visible = !isEmpty;
-            }
-        }
-
-        /**
-         * Updates the active state of the restore default button. It will only be active if values are
-         * different from their default.
-         */
-        @Override
-        void updateRestoreButton() {
-            final Button restoreButton = this.buttons[2];
-            if (restoreButton != null) {
-                restoreButton.active = this.valueToData.values().stream().anyMatch(IEntryData::mayResetValue);
-            }
+        void onSearchFieldChanged(boolean empty) {
+            this.doneButton.visible = empty;
+            this.cancelButton.visible = empty;
+            this.backButton.visible = !empty;
         }
 
         @Override
@@ -182,13 +146,14 @@ public abstract class ConfigScreen extends Screen {
                 if (this.valueToData.values().stream().allMatch(IEntryData::mayDiscardChanges)) {
                     confirmScreen = this.lastScreen;
                 } else {
-                    confirmScreen = this.makeConfirmationScreen(result -> {
+                    confirmScreen = ScreenUtil.makeConfirmationScreen(result -> {
                         if (result) {
+                            this.valueToData.values().forEach(IEntryData::discardCurrentValue);
                             this.minecraft.setScreen(this.lastScreen);
                         } else {
                             this.minecraft.setScreen(this);
                         }
-                    }, new TranslatableComponent("configured.gui.message.discard"));
+                    }, new TranslatableComponent("configured.gui.message.discard"), TextComponent.EMPTY, this.background);
                 }
                 this.minecraft.setScreen(confirmScreen);
             }
@@ -285,36 +250,37 @@ public abstract class ConfigScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.list = new ConfigList(this.getConfigListEntries(""));
-        this.addWidget(this.list);
-        ConfigEditBox oldSearchTextField = this.searchTextField;
-        this.searchTextField = new ConfigEditBox(this.font, this.width / 2 - 109, 22, 218, 20, () -> this.activeTextField, activeTextField -> this.activeTextField = activeTextField);
+        boolean focus = this.searchTextField != null && this.searchTextField.isFocused();
+        this.searchTextField = new EditBox(this.font, this.width / 2 - 109, 22, 218, 20, this.searchTextField, TextComponent.EMPTY) {
+
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                // left click clears text
+                if (this.isVisible() && button == 1) {
+                    this.setValue("");
+                }
+                return super.mouseClicked(mouseX, mouseY, button);
+            }
+        };
         this.searchTextField.setResponder(query -> {
-            this.refreshConfigListEntries(query);
-            this.onSearchFieldChanged(query.isEmpty());
+            this.list.replaceEntries(this.getConfigListEntries(query));
+            this.onSearchFieldChanged(query.trim().isEmpty());
         });
-        if (oldSearchTextField != null) {
-            this.searchTextField.setValue(oldSearchTextField.getValue());
-            this.searchTextField.setFocus(oldSearchTextField.isFocused());
-        }
+        this.searchTextField.setFocus(focus);
+        this.list = new ConfigList(this.getConfigListEntries(this.searchTextField.getValue()));
+        this.addWidget(this.list);
         this.addWidget(this.searchTextField);
         final List<FormattedCharSequence> tooltip = this.font.split(new TranslatableComponent("configured.gui.info"), 200);
-        final ImageButton configuredButton = new ImageButton(10, 13, 23, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
-            Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://www.curseforge.com/minecraft/mc-mods/configured"));
+        this.addRenderableWidget(new ImageButton(23, 14, 19, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
+            Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
             this.handleComponentClicked(style);
         }, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
             this.setActiveTooltip(tooltip);
-        }, TextComponent.EMPTY);
-        this.addRenderableWidget(configuredButton);
+        }, TextComponent.EMPTY));
     }
 
-    void refreshConfigListEntries(String query) {
-        if (this.list != null) {
-            this.list.replaceEntries(this.getConfigListEntries(query.toLowerCase(Locale.ROOT).trim()));
-        }
-    }
-
-    private List<ConfigScreen.Entry> getConfigListEntries(final String query) {
+    private List<ConfigScreen.Entry> getConfigListEntries(String query) {
+        query = query.toLowerCase(Locale.ROOT).trim();
         return this.getConfigListEntries(!query.isEmpty() ? this.searchEntries : this.screenEntries, query);
     }
 
@@ -334,13 +300,10 @@ public abstract class ConfigScreen extends Screen {
         // sets bottom buttons visibility
     }
 
-    void updateRestoreButton() {
-        // button only present on main screen
-    }
-
     @Override
     public void tick() {
         // makes the cursor blink
+        this.searchTextField.tick();
         if (this.activeTextField != null) {
             this.activeTextField.tick();
         }
@@ -466,15 +429,29 @@ public abstract class ConfigScreen extends Screen {
         return null;
     }
 
-    ConfirmScreen makeConfirmationScreen(BooleanConsumer booleanConsumer, Component component) {
-        // just a confirmation screen with a custom background
-        return new ConfirmScreen(booleanConsumer, component, TextComponent.EMPTY) {
+    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec) {
+        return create(lastScreen, title, background, spec, makeValueToDataMap(spec));
+    }
 
-            @Override
-            public void renderBackground(PoseStack poseStack, int vOffset) {
-                ScreenUtil.renderCustomBackground(this, ConfigScreen.this.background, vOffset);
+    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec, Map<Object, IEntryData> valueToData) {
+        return new ConfigScreen.Main(lastScreen, title, background, spec, valueToData);
+    }
+
+    public static Map<Object, IEntryData> makeValueToDataMap(ForgeConfigSpec spec) {
+        Map<Object, IEntryData> allData = Maps.newHashMap();
+        makeValueToDataMap(spec, spec.getValues(), allData);
+        return ImmutableMap.copyOf(allData);
+    }
+
+    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryData> allData) {
+        values.valueMap().forEach((path, value) -> {
+            if (value instanceof UnmodifiableConfig configValue) {
+                allData.put(configValue, new EntryData.CategoryEntryData(ScreenUtil.formatLabel(path), configValue));
+                makeValueToDataMap(spec, configValue, allData);
+            } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
+                allData.put(configValue, new EntryData.ConfigEntryData<>(configValue, spec.getRaw(configValue.getPath())));
             }
-        };
+        });
     }
 
     @Environment(EnvType.CLIENT)
@@ -502,11 +479,13 @@ public abstract class ConfigScreen extends Screen {
         }
 
         @Override
-        public void render(PoseStack poseStack, int i, int j, float f) {
-            super.render(poseStack, i, j, f);
-            ConfigScreen.Entry entry = this.getHovered();
-            if (entry != null) {
-                ConfigScreen.this.setActiveTooltip(entry.getTooltip());
+        public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
+            super.render(poseStack, mouseX, mouseY, partialTicks);
+            if (this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
+                ConfigScreen.Entry entry = this.getHovered();
+                if (entry != null) {
+                    ConfigScreen.this.setActiveTooltip(entry.getTooltip());
+                }
             }
         }
     }
@@ -577,8 +556,11 @@ public abstract class ConfigScreen extends Screen {
 
         public CategoryEntry(Component title, ConfigScreen screen) {
             super(title, null);
-            final FormattedText truncatedText = this.getTruncatedText(ConfigScreen.this.font, title, 260 - 4, Style.EMPTY.withBold(true));
-            this.button = new Button(10, 5, 260, 20, new TextComponent(truncatedText.getString()).withStyle(ChatFormatting.BOLD), button -> ConfigScreen.this.minecraft.setScreen(screen));
+            this.button = new Button(10, 5, 260, 20, new TextComponent("").append(title).withStyle(ChatFormatting.BOLD), button -> {
+                ConfigScreen.this.searchTextField.setValue("");
+                ConfigScreen.this.searchTextField.setFocus(false);
+                ConfigScreen.this.minecraft.setScreen(screen);
+            });
         }
 
         @Override
@@ -642,7 +624,6 @@ public abstract class ConfigScreen extends Screen {
 
         public void onConfigValueChanged(T newValue, boolean reset) {
             this.resetButton.active = this.configEntryData.mayResetValue();
-            ConfigScreen.this.updateRestoreButton();
         }
 
         @Override
@@ -753,7 +734,6 @@ public abstract class ConfigScreen extends Screen {
                     configEntryData.resetCurrentValue();
                     // provides an easy way to make text field usable again, even though default value is already set in background
                     this.resetButton.active = true;
-                    ConfigScreen.this.updateRestoreButton();
                 }
             });
             this.textField.setValue(configEntryData.getCurrentValue().toString());
@@ -922,41 +902,13 @@ public abstract class ConfigScreen extends Screen {
         @Override
         Screen makeEditScreen(String type, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
             // displays a warning screen when editing a list of unknown type before allowing the edit
-            return new ConfirmScreen(result -> {
+            return ScreenUtil.makeConfirmationScreen(result -> {
                 if (result) {
                     ConfigScreen.this.minecraft.setScreen(super.makeEditScreen(type, currentValue, valueSpec, onSave));
                 } else {
                     ConfigScreen.this.minecraft.setScreen(ConfigScreen.this);
                 }
-            }, new TranslatableComponent("configured.gui.message.dangerous.title").withStyle(ChatFormatting.RED), new TranslatableComponent("configured.gui.message.dangerous.text"), CommonComponents.GUI_PROCEED, CommonComponents.GUI_BACK) {
-
-                @Override
-                public void renderBackground(PoseStack poseStack, int vOffset) {
-                    ScreenUtil.renderCustomBackground(this, ConfigScreen.this.background, vOffset);
-                }
-
-            };
+            }, new TranslatableComponent("configured.gui.message.dangerous.title").withStyle(ChatFormatting.RED), new TranslatableComponent("configured.gui.message.dangerous.text"), CommonComponents.GUI_PROCEED, CommonComponents.GUI_BACK, ConfigScreen.this.background);
         }
-    }
-
-    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec) {
-        return new ConfigScreen.Main(lastScreen, title, background, spec, makeValueToDataMap(spec));
-    }
-
-    private static Map<Object, IEntryData> makeValueToDataMap(ForgeConfigSpec spec) {
-        Map<Object, IEntryData> allData = Maps.newHashMap();
-        makeValueToDataMap(spec, spec.getValues(), allData);
-        return ImmutableMap.copyOf(allData);
-    }
-
-    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryData> allData) {
-        values.valueMap().forEach((path, value) -> {
-            if (value instanceof UnmodifiableConfig configValue) {
-                allData.put(configValue, new EntryData.CategoryEntryData(ScreenUtil.formatLabel(path), configValue));
-                makeValueToDataMap(spec, configValue, allData);
-            } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
-                allData.put(configValue, new EntryData.ConfigEntryData<>(configValue, spec.getRaw(configValue.getPath())));
-            }
-        });
     }
 }

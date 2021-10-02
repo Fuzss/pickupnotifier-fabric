@@ -67,18 +67,18 @@ public class EditListScreen extends Screen {
     protected void init() {
         this.list = new EditList();
         this.addWidget(this.list);
-        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
+        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 50 + 104, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.values.stream()
                     .map(MutableObject::getValue)
                     .collect(Collectors.toList()));
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50 - 104, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
             MutableObject<String> holder = new MutableObject<>("");
             this.values.add(holder);
             this.list.addEntry(new EditListEntry(this.list, holder, true));
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 28, 100, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
     }

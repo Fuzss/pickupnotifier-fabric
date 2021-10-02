@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextComponent;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -88,6 +89,8 @@ public interface IEntryData extends Comparable<IEntryData> {
 
     void resetCurrentValue();
 
+    void discardCurrentValue();
+
     /**
      * save to actual config, called when pressing done
      */
@@ -95,15 +98,11 @@ public interface IEntryData extends Comparable<IEntryData> {
 
     @Override
     default int compareTo(IEntryData other) {
-        int compare = this.getTitle().getString().compareTo(other.getTitle().getString());
+        Comparator<IEntryData> comparator = Comparator.comparing(o -> o.getTitle().getString());
         if (this.withPath()) {
             // when searching sort by index of query, only if both match sort alphabetically
-            final String query = this.getSearchQuery();
-            final int compareIndex = this.getSearchableTitle().indexOf(query) - other.getSearchableTitle().indexOf(query);
-            if (compareIndex != 0) {
-                compare = compareIndex;
-            }
+            comparator = Comparator.<IEntryData>comparingInt(o -> o.getSearchableTitle().indexOf(o.getSearchQuery())).thenComparing(comparator);
         }
-        return compare;
+        return comparator.compare(this, other);
     }
 }

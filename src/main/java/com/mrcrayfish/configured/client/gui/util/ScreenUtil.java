@@ -1,11 +1,10 @@
 package com.mrcrayfish.configured.client.gui.util;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.*;
+import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import joptsimple.internal.Strings;
+import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
@@ -14,6 +13,28 @@ import net.minecraft.resources.ResourceLocation;
 import org.apache.commons.lang3.StringUtils;
 
 public class ScreenUtil {
+
+    public static ConfirmScreen makeConfirmationScreen(BooleanConsumer booleanConsumer, Component component1, Component component2, ResourceLocation background) {
+        // just a confirmation screen with a custom background
+        return new ConfirmScreen(booleanConsumer, component1, component2) {
+
+            @Override
+            public void renderBackground(PoseStack poseStack, int vOffset) {
+                ScreenUtil.renderCustomBackground(this, background, vOffset);
+            }
+        };
+    }
+
+    public static ConfirmScreen makeConfirmationScreen(BooleanConsumer booleanConsumer, Component component1, Component component2, Component component3, Component component4, ResourceLocation background) {
+        // just a confirmation screen with a custom background
+        return new ConfirmScreen(booleanConsumer, component1, component2, component3, component4) {
+
+            @Override
+            public void renderBackground(PoseStack poseStack, int vOffset) {
+                ScreenUtil.renderCustomBackground(this, background, vOffset);
+            }
+        };
+    }
 
     public static void renderCustomBackground(Screen screen, ResourceLocation background, int vOffset) {
         Tesselator tesselator = Tesselator.getInstance();

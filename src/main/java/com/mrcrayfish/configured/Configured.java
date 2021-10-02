@@ -7,6 +7,7 @@ public class Configured {
 
     public static final String MODID = "configured";
     public static final String NAME = "Configured";
+    public static final String URL = "https://www.curseforge.com/minecraft/mc-mods/configured";
     public static final Logger LOGGER = LogManager.getLogger(Configured.NAME);
 
 }

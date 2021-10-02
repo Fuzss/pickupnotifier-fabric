@@ -54,11 +54,11 @@ public class EditEnumScreen extends Screen {
 		this.minecraft.keyboardHandler.setSendRepeatsToGui(true);
 		this.list = new EnumList();
 		this.addWidget(this.list);
-		this.addRenderableWidget(new Button(this.width / 2 - 155, this.height - 28, 150, 20, CommonComponents.GUI_DONE, (button) -> {
+		this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_DONE, (button) -> {
 			this.onSave.accept(this.value);
 			this.minecraft.setScreen(this.lastScreen);
 		}));
-		this.addRenderableWidget(new Button(this.width / 2 + 5, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, (button) -> {
+		this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, (button) -> {
 			this.minecraft.setScreen(this.lastScreen);
 		}));
 		this.list.setSelected(this.list.children().stream().filter((entry) -> {

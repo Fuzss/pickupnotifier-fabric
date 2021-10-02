@@ -54,6 +54,11 @@ public class EntryData implements IEntryData {
     }
 
     @Override
+    public void discardCurrentValue() {
+
+    }
+
+    @Override
     public void saveConfigValue() {
 
     }
@@ -117,6 +122,11 @@ public class EntryData implements IEntryData {
         @Override
         public void resetCurrentValue() {
             this.currentValue = this.getDefaultValue();
+        }
+
+        @Override
+        public void discardCurrentValue() {
+            this.currentValue = this.configValue.get();
         }
 
         @Override

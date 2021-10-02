@@ -3,6 +3,7 @@ package com.mrcrayfish.configured.client.gui.components;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
+import com.mrcrayfish.configured.client.gui.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.screens.ConfigScreen;
 import com.mrcrayfish.configured.client.gui.screens.SelectConfigScreen;
 import net.fabricmc.api.EnvType;
@@ -21,6 +22,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.util.Comparator;
@@ -33,6 +35,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 	private static final ResourceLocation ICON_OVERLAY_LOCATION = new ResourceLocation("textures/gui/world_selection.png");
 	private static final Component NO_DATA_TOOLTIP = new TranslatableComponent("configured.gui.select.no_data").withStyle(ChatFormatting.RED);
 	private static final Component NO_PERMISSIONS_TOOLTIP = new TranslatableComponent("configured.gui.select.no_permissions").withStyle(ChatFormatting.GOLD);
+	private static final Component MULTIPLAYER_SERVER_TOOLTIP = new TranslatableComponent("configured.gui.select.multiplayer_server").withStyle(ChatFormatting.GOLD);
 
 	private final SelectConfigScreen screen;
 
@@ -44,11 +47,12 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 
 	public void refreshList(String query) {
 		this.clearEntries();
-		final String lowerCaseQuery = query.toLowerCase(Locale.ROOT);
+		this.setSelected(null);
+		final String lowerCaseQuery = query.toLowerCase(Locale.ROOT).trim();
 		this.screen.getConfigs().stream()
 				.filter(config -> matchesConfigSearch(config, lowerCaseQuery))
-				.sorted(Comparator.comparing(config -> config.getType().extension()))
-				.forEach(config -> this.addEntry(new ConfigListEntry(this.screen, config)));
+				.sorted(Comparator.<ModConfig, String>comparing(config -> config.getType().extension()).thenComparing(ConfigListEntry::getName))
+				.forEach(config -> this.addEntry(new ConfigListEntry(this.screen, this.minecraft, config)));
 	}
 
 	private static boolean matchesConfigSearch(ModConfig config, String query) {
@@ -75,6 +79,12 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 	}
 
 	@Override
+	public void setSelected(@Nullable ConfigListEntry configListEntry) {
+		super.setSelected(configListEntry);
+		this.screen.updateButtonStatus(configListEntry != null && !configListEntry.isDisabled());
+	}
+
+	@Override
 	protected void moveSelection(SelectionDirection selectionDirection) {
 		this.moveSelection(selectionDirection, (configListEntry) -> !configListEntry.isDisabled());
 	}
@@ -83,26 +93,28 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 	public class ConfigListEntry extends Entry<ConfigListEntry> {
 		private final Minecraft minecraft;
 		private final SelectConfigScreen screen;
+		private final boolean mayResetValue;
 		private final Component nameComponent;
 		private final Component fileNameComponent;
 		private final Component typeComponent;
-		final ModConfig config;
+		private final ModConfig config;
 		private long lastClickTime;
 
-		public ConfigListEntry(SelectConfigScreen selectConfigScreen, ModConfig config) {
+		public ConfigListEntry(SelectConfigScreen selectConfigScreen, Minecraft minecraft, ModConfig config) {
 			this.screen = selectConfigScreen;
 			this.config = config;
-			this.minecraft = Minecraft.getInstance();
-			this.nameComponent = this.getNameComponent();
+			this.minecraft = minecraft;
+			this.mayResetValue = selectConfigScreen.getValueToDataMap(config).values().stream().anyMatch(IEntryData::mayResetValue);
+			this.nameComponent = this.mayResetValue ? new TextComponent(getName(config)).withStyle(ChatFormatting.ITALIC) : new TextComponent(getName(config));
 			this.fileNameComponent = new TextComponent(config.getFileName());
-			String extension = this.config.getType().extension();
+			String extension = config.getType().extension();
 			this.typeComponent = new TranslatableComponent("configured.gui.type.title", StringUtils.capitalize(extension));
 		}
 
 		@Override
 		public Component getNarration() {
-			Component component = this.getNameComponent();
-			if (this.invalidData()) {
+			Component component = new TextComponent(getName(this.config));
+			if (this.screen.invalidData(this.config)) {
 				component = CommonComponents.joinForNarration(component, ConfigSelectionList.NO_DATA_TOOLTIP);
 			} else if (this.noPermissions()) {
 				component = CommonComponents.joinForNarration(component, ConfigSelectionList.NO_PERMISSIONS_TOOLTIP);
@@ -130,7 +142,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 				RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 				boolean leftHovered = mouseX - entryLeft < 32;
 				int textureY = leftHovered ? 32 : 0;
-				if (this.invalidData()) {
+				if (this.screen.invalidData(this.config)) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 96.0F, (float)textureY, 32, 32, 256, 256);
 					if (leftHovered) {
 						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_DATA_TOOLTIP, 175));
@@ -139,6 +151,12 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
 						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 175));
+					}
+				} else if (this.carefulEditing()) {
+					GuiComponent.blit(poseStack, entryLeft, entryTop, 32.0F, (float)textureY, 32, 32, 256, 256);
+					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
+					if (leftHovered) {
+						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.MULTIPLAYER_SERVER_TOOLTIP, 175));
 					}
 				} else {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 0.0F, (float)textureY, 32, 32, 256, 256);
@@ -153,6 +171,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 				return true;
 			} else {
 				ConfigSelectionList.this.setSelected(this);
+				this.screen.updateButtonStatus(ConfigSelectionList.this.getSelected() != null);
 				if (mouseX - (double) ConfigSelectionList.this.getRowLeft() <= 32.0D) {
 					this.openConfig();
 					return true;
@@ -166,29 +185,36 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 			}
 		}
 
-		private void openConfig() {
-			final ConfigScreen configScreen = ConfigScreen.create(this.screen, this.screen.getDisplayName(), this.screen.getBackground(), (ForgeConfigSpec) this.config.getSpec());
+		public void openConfig() {
+			final ConfigScreen configScreen = ConfigScreen.create(this.screen, this.screen.getDisplayName(), this.screen.getBackground(), (ForgeConfigSpec) this.config.getSpec(), this.screen.getValueToDataMap(this.config));
 			this.minecraft.setScreen(configScreen);
 		}
 
-		private Component getNameComponent() {
-			String fullName = this.config.getFileName();
+		static String getName(ModConfig config) {
+			String fullName = config.getFileName();
 			int start = fullName.lastIndexOf(File.separator) + 1;
 			int end = fullName.lastIndexOf(".");
-			String fileName = fullName.substring(start, end < start ? fullName.length() : end);
-			return new TextComponent(fileName);
+			return fullName.substring(start, end < start ? fullName.length() : end);
 		}
 
 		private boolean noPermissions() {
 			return !this.screen.getServerPermissions() && this.config.getType() == ModConfig.Type.SERVER;
 		}
 
-		private boolean invalidData() {
-			return this.config.getConfigData() == null || !(this.config.getSpec() instanceof ForgeConfigSpec);
+		private boolean carefulEditing() {
+			return this.config.getType() == ModConfig.Type.SERVER && !this.minecraft.isLocalServer();
 		}
 
-		private boolean isDisabled() {
-			return this.invalidData() || this.noPermissions();
+		boolean isDisabled() {
+			return this.screen.invalidData(this.config) || this.noPermissions();
+		}
+
+		public ModConfig getConfig() {
+			return this.config;
+		}
+
+		public boolean mayResetValue() {
+			return this.mayResetValue;
 		}
 	}
 }
