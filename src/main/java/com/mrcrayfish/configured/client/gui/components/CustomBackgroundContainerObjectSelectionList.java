@@ -1,28 +1,35 @@
-package com.mrcrayfish.configured.client.screen;
+package com.mrcrayfish.configured.client.gui.components;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
-import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Objects;
+
 // all this for changing background texture >.<
-public abstract class CustomBackgroundObjectSelectionList<E extends ObjectSelectionList.Entry<E>> extends ObjectSelectionList<E> {
+public abstract class CustomBackgroundContainerObjectSelectionList<E extends ContainerObjectSelectionList.Entry<E>> extends ContainerObjectSelectionList<E> {
     private final ResourceLocation background;
+    private boolean renderSelection = true;
     private boolean renderHeader;
     private boolean renderBackground = true;
     private boolean renderTopAndBottom = true;
     @Nullable
     private E hovered;
 
-    public CustomBackgroundObjectSelectionList(Minecraft minecraft, ResourceLocation background, int i, int j, int k, int l, int m) {
+    public CustomBackgroundContainerObjectSelectionList(Minecraft minecraft, ResourceLocation background, int i, int j, int k, int l, int m) {
         super(minecraft, i, j, k, l, m);
         this.background = background;
+    }
+
+    @Override
+    public void setRenderSelection(boolean bl) {
+        this.renderSelection = bl;
     }
 
     @Override
@@ -42,6 +49,10 @@ public abstract class CustomBackgroundObjectSelectionList<E extends ObjectSelect
     @Override
     public void setRenderTopAndBottom(boolean bl) {
         this.renderTopAndBottom = bl;
+    }
+
+    private int getRowBottom(int i) {
+        return this.getRowTop(i) + this.itemHeight;
     }
 
     @Override
@@ -136,6 +147,51 @@ public abstract class CustomBackgroundObjectSelectionList<E extends ObjectSelect
         this.renderDecorations(poseStack, i, j);
         RenderSystem.enableTexture();
         RenderSystem.disableBlend();
+    }
+
+    @Override
+    protected void renderList(PoseStack poseStack, int i, int j, int k, int l, float f) {
+        int m = this.getItemCount();
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder bufferBuilder = tesselator.getBuilder();
+
+        for(int n = 0; n < m; ++n) {
+            int o = this.getRowTop(n);
+            int p = this.getRowBottom(n);
+            if (p >= this.y0 && o <= this.y1) {
+                int q = j + n * this.itemHeight + this.headerHeight;
+                int r = this.itemHeight - 4;
+                E entry = this.getEntry(n);
+                int s = this.getRowWidth();
+                int v;
+                if (this.renderSelection && this.isSelectedItem(n)) {
+                    v = this.x0 + this.width / 2 - s / 2;
+                    int u = this.x0 + this.width / 2 + s / 2;
+                    RenderSystem.disableTexture();
+                    RenderSystem.setShader(GameRenderer::getPositionShader);
+                    float g = this.isFocused() ? 1.0F : 0.5F;
+                    RenderSystem.setShaderColor(g, g, g, 1.0F);
+                    bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+                    bufferBuilder.vertex(v, q + r + 2, 0.0D).endVertex();
+                    bufferBuilder.vertex(u, q + r + 2, 0.0D).endVertex();
+                    bufferBuilder.vertex(u, q - 2, 0.0D).endVertex();
+                    bufferBuilder.vertex(v, q - 2, 0.0D).endVertex();
+                    tesselator.end();
+                    RenderSystem.setShaderColor(0.0F, 0.0F, 0.0F, 1.0F);
+                    bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+                    bufferBuilder.vertex(v + 1, q + r + 1, 0.0D).endVertex();
+                    bufferBuilder.vertex(u - 1, q + r + 1, 0.0D).endVertex();
+                    bufferBuilder.vertex(u - 1, q - 1, 0.0D).endVertex();
+                    bufferBuilder.vertex(v + 1, q - 1, 0.0D).endVertex();
+                    tesselator.end();
+                    RenderSystem.enableTexture();
+                }
+
+                v = this.getRowLeft();
+                entry.render(poseStack, n, o, v, s, r, k, l, Objects.equals(this.hovered, entry), f);
+            }
+        }
+
     }
 
     @Override

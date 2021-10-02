@@ -1,6 +1,8 @@
-package com.mrcrayfish.configured.client.screen;
+package com.mrcrayfish.configured.client.gui.screens;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mrcrayfish.configured.client.gui.components.CustomBackgroundObjectSelectionList;
+import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.GuiComponent;
@@ -66,7 +68,7 @@ public class EditEnumScreen extends Screen {
 
 	@Override
 	public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-		this.renderDirtBackground(0);
+		ScreenUtil.renderCustomBackground(this, this.background, 0);
 		this.list.render(poseStack, mouseX, mouseY, partialTicks);
 		drawCenteredString(poseStack, this.font, this.title, this.width / 2, 14, 16777215);
 		super.render(poseStack, mouseX, mouseY, partialTicks);
@@ -114,7 +116,7 @@ public class EditEnumScreen extends Screen {
 
 			public Entry(Enum<?> value) {
 				this.value = value;
-				this.name = ConfigScreen.formatLabel(value.name().toLowerCase(Locale.ROOT));
+				this.name = ScreenUtil.formatLabel(value.name().toLowerCase(Locale.ROOT));
 			}
 
 			@Override

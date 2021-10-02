@@ -1,10 +1,12 @@
-package com.mrcrayfish.configured.client.screen;
+package com.mrcrayfish.configured.client.gui.screens;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mrcrayfish.configured.client.screen.widget.ConfigEditBox;
-import com.mrcrayfish.configured.client.screen.widget.IconButton;
+import com.mrcrayfish.configured.client.gui.components.CustomBackgroundContainerObjectSelectionList;
+import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
+import com.mrcrayfish.configured.client.gui.widget.ConfigEditBox;
+import com.mrcrayfish.configured.client.gui.widget.IconButton;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.components.Button;
@@ -29,9 +31,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/**
- * Author: MrCrayfish
- */
 @SuppressWarnings("ConstantConditions")
 public class EditListScreen extends Screen {
     private final Screen lastScreen;
@@ -68,16 +67,16 @@ public class EditListScreen extends Screen {
     protected void init() {
         this.list = new EditList();
         this.addWidget(this.list);
-        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
+        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.values.stream()
                     .map(MutableObject::getValue)
                     .collect(Collectors.toList()));
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
+        this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
             MutableObject<String> holder = new MutableObject<>("");
             this.values.add(holder);
-            this.list.addEntry(new EditListEntry(this.list, holder));
+            this.list.addEntry(new EditListEntry(this.list, holder, true));
         }));
         this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 29, 100, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
@@ -88,7 +87,7 @@ public class EditListScreen extends Screen {
     public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
         List<? extends FormattedCharSequence> lastTooltip = this.activeTooltip;
         this.activeTooltip = null;
-        this.renderBackground(poseStack);
+        ScreenUtil.renderCustomBackground(this, this.background, 0);
         this.list.render(poseStack, mouseX, mouseY, partialTicks);
         drawCenteredString(poseStack, this.font, this.title, this.width / 2, 14, 0xFFFFFF);
         super.render(poseStack, mouseX, mouseY, partialTicks);
@@ -158,12 +157,16 @@ public class EditListScreen extends Screen {
         }
     }
 
-    private class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
+    public class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
         private final MutableObject<String> holder;
         private final ConfigEditBox textField;
         private final Button deleteButton;
 
-        private EditListEntry(EditList list, MutableObject<String> holder) {
+        EditListEntry(EditList list, MutableObject<String> holder) {
+            this(list, holder, false);
+        }
+
+        private EditListEntry(EditList list, MutableObject<String> holder, boolean withFocus) {
             this.holder = holder;
             this.textField = new ConfigEditBox(EditListScreen.this.font, 0, 0, 260 - 24, 18, () -> EditListScreen.this.activeTextField, activeTextField -> EditListScreen.this.activeTextField = activeTextField) {
 
@@ -184,6 +187,8 @@ public class EditListScreen extends Screen {
                 }
             });
             this.textField.setValue(holder.getValue());
+            this.textField.setFocus(withFocus);
+
             final List<FormattedCharSequence> tooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
             this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, button -> {
                 EditListScreen.this.values.remove(holder);

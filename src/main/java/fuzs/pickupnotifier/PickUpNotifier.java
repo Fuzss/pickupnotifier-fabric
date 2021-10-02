@@ -58,6 +58,13 @@ public class PickUpNotifier implements ModInitializer {
         ModConfig.registerConfig(MODID, ModConfig.Type.COMMON, CONFIG.buildSpec(), ConfigManager.getSimpleName(MODID));
         ConfigManager.init(MODID);
 
+        ModConfig.registerConfig(MODID, ModConfig.Type.SERVER, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec(), ConfigManager.getSimpleName(MODID+"blaha"));
+        ModConfig.registerConfig(MODID, ModConfig.Type.CLIENT, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec());
+        ModConfig.registerConfig(MODID, ModConfig.Type.SERVER, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec());
+        ModConfig.registerConfig(MODID, ModConfig.Type.COMMON, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec());
+        ModConfig.registerConfig(MODID, ModConfig.Type.COMMON, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec(), ConfigManager.getSimpleName(MODID+"hihiohfdisof"));
+        ModConfig.registerConfig(MODID, ModConfig.Type.COMMON, new ConfigHolder<>(() -> new ClientConfig(), () -> new ServerConfig()).buildSpec(), ConfigManager.getSimpleName(MODID+ "ModConfig.Type.COMMON"));
+
         ConfigSync.INSTANCE.init();
         ConfigTracker.INSTANCE.loadConfigs(ModConfig.Type.COMMON, FabricEnvironment.getConfigDir());
         ArgumentTypes.register("forge:enum", EnumArgument.class, (ArgumentSerializer) new EnumArgument.Serializer());

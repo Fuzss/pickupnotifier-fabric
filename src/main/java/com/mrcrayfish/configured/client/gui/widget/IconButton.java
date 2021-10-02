@@ -1,4 +1,4 @@
-package com.mrcrayfish.configured.client.screen.widget;
+package com.mrcrayfish.configured.client.gui.widget;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
