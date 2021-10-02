@@ -2,10 +2,9 @@ package com.mrcrayfish.configured.client.screen;
 
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.google.common.collect.*;
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
+import com.mrcrayfish.configured.client.screen.util.ScreenUtil;
 import com.mrcrayfish.configured.client.screen.widget.ConfigEditBox;
 import com.mrcrayfish.configured.client.screen.widget.IconButton;
 import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
@@ -21,14 +20,12 @@ import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.util.Mth;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 import org.apache.commons.lang3.StringUtils;
@@ -57,7 +54,7 @@ public abstract class ConfigScreen extends Screen {
      * only used when building screen specific search and display lists and for certain actions on main screen
      * same for all sub menus
      */
-    final Map<Object, IEntryUnit> valueToUnit;
+    final Map<Object, IEntryData> valueToData;
     private ConfigList list;
     EditBox searchTextField;
     @Nullable
@@ -66,11 +63,11 @@ public abstract class ConfigScreen extends Screen {
     private List<FormattedCharSequence> activeTooltip;
     private int tooltipTicks;
 
-    private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, Map<Object, IEntryUnit> valueToUnit) {
+    private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, Map<Object, IEntryData> valueToData) {
         super(title);
         this.lastScreen = lastScreen;
         this.background = background;
-        this.valueToUnit = valueToUnit;
+        this.valueToData = valueToData;
     }
 
     private static class Main extends ConfigScreen {
@@ -80,12 +77,12 @@ public abstract class ConfigScreen extends Screen {
          * includes entries from this screen {@link #screenEntries} and from all sub screens of this
          * type is for separators
          */
-        private final Map<ModConfig.Type, List<IEntryUnit>> searchEntries;
+        private final Map<ModConfig.Type, List<IEntryData>> searchEntries;
         /**
          * default entries shown on screen when not searching
          * type is for separators
          */
-        private final Map<ModConfig.Type, List<IEntryUnit>> screenEntries;
+        private final Map<ModConfig.Type, List<IEntryData>> screenEntries;
         /**
          * only used for saving when closing screen
          */
@@ -93,23 +90,23 @@ public abstract class ConfigScreen extends Screen {
         // done, cancel, restore, back (back only appears when search field is not empty)
         private final Button[] buttons = new Button[4];
 
-        private Main(Screen lastScreen, Component title, ResourceLocation background, Map<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, IEntryUnit> valueToUnit) {
-            super(lastScreen, title, background, valueToUnit);
-            this.searchEntries = this.gatherEntriesRecursive(typeToSpecs, valueToUnit);
+        private Main(Screen lastScreen, Component title, ResourceLocation background, Map<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, IEntryData> valueToData) {
+            super(lastScreen, title, background, valueToData);
+            this.searchEntries = this.gatherEntriesRecursive(typeToSpecs, valueToData);
             this.screenEntries = typeToSpecs.entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream()
                             .flatMap(spec -> spec.getValues().valueMap().values().stream())
-                            .map(valueToUnit::get)
+                            .map(valueToData::get)
                             .toList(), (o1, o2) -> o1, () -> Maps.newEnumMap(ModConfig.Type.class)));
             this.configSpecs = mergeValues(typeToSpecs.values());
             this.buildSubScreens(mergeValues(this.screenEntries.values()));
         }
 
         @SuppressWarnings("UnstableApiUsage")
-        private Map<ModConfig.Type, List<IEntryUnit>> gatherEntriesRecursive(Map<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, IEntryUnit> allEntries) {
-            Map<ModConfig.Type, List<IEntryUnit>> entries = Maps.newEnumMap(ModConfig.Type.class);
+        private Map<ModConfig.Type, List<IEntryData>> gatherEntriesRecursive(Map<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs, Map<Object, IEntryData> allEntries) {
+            Map<ModConfig.Type, List<IEntryData>> entries = Maps.newEnumMap(ModConfig.Type.class);
             typeToSpecs.forEach((type, specs) -> {
-                final List<IEntryUnit> typeEntries = entries.computeIfAbsent(type, key -> Lists.newArrayList());
+                final List<IEntryData> typeEntries = entries.computeIfAbsent(type, key -> Lists.newArrayList());
                 specs.forEach(spec -> this.gatherEntriesRecursive(spec.getValues(), typeEntries, allEntries));
             });
             return Maps.immutableEnumMap(entries);
@@ -120,7 +117,7 @@ public abstract class ConfigScreen extends Screen {
             return this.getConfigListEntries(!query.isEmpty() ? this.searchEntries : this.screenEntries, query);
         }
 
-        private List<ConfigScreen.Entry> getConfigListEntries(Map<ModConfig.Type, List<IEntryUnit>> entries, final String query) {
+        private List<ConfigScreen.Entry> getConfigListEntries(Map<ModConfig.Type, List<IEntryData>> entries, final String query) {
             final ImmutableList.Builder<ConfigScreen.Entry> builder = ImmutableList.builder();
             entries.forEach((type, units) -> {
                 List<ConfigScreen.Entry> typeEntries = this.getConfigListEntries(units, query);
@@ -145,7 +142,7 @@ public abstract class ConfigScreen extends Screen {
         protected void init() {
             super.init();
             this.buttons[0] = this.addRenderableWidget(new Button(this.width / 2 - 50 - 105, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
-                this.valueToUnit.values().forEach(IEntryUnit::saveConfigValue);
+                this.valueToData.values().forEach(IEntryData::saveConfigValue);
                 this.configSpecs.forEach(ForgeConfigSpec::save);
                 this.minecraft.setScreen(this.lastScreen);
             }));
@@ -153,7 +150,7 @@ public abstract class ConfigScreen extends Screen {
             this.buttons[2] = this.addRenderableWidget(new Button(this.width / 2 - 50 + 105, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.restore"), button -> {
                 Screen confirmScreen = this.makeConfirmationScreen(result -> {
                     if (result) {// Resets all config values
-                        this.valueToUnit.values().forEach(IEntryUnit::resetCurrentValue);
+                        this.valueToData.values().forEach(IEntryData::resetCurrentValue);
                         // Updates the current entries to process UI changes
                         this.refreshConfigListEntries("");
                     }
@@ -182,7 +179,7 @@ public abstract class ConfigScreen extends Screen {
         void updateRestoreButton() {
             final Button restoreButton = this.buttons[2];
             if (restoreButton != null) {
-                restoreButton.active = this.valueToUnit.values().stream().anyMatch(IEntryUnit::mayResetValue);
+                restoreButton.active = this.valueToData.values().stream().anyMatch(IEntryData::mayResetValue);
             }
         }
 
@@ -194,7 +191,7 @@ public abstract class ConfigScreen extends Screen {
             } else {
                 // when canceling display confirm screen if any values have been changed
                 Screen confirmScreen;
-                if (this.valueToUnit.values().stream().allMatch(IEntryUnit::mayDiscardChanges)) {
+                if (this.valueToData.values().stream().allMatch(IEntryData::mayDiscardChanges)) {
                     confirmScreen = this.lastScreen;
                 } else {
                     confirmScreen = this.makeConfirmationScreen(result -> {
@@ -216,21 +213,21 @@ public abstract class ConfigScreen extends Screen {
          * entries used when searching
          * includes entries from this screen {@link #screenEntries} and from all sub screens of this
          */
-        private final List<IEntryUnit> searchEntries;
+        private final List<IEntryData> searchEntries;
         /**
          * default entries shown on screen when not searching
          */
-        private final List<IEntryUnit> screenEntries;
+        private final List<IEntryData> screenEntries;
 
         private Sub(ConfigScreen lastScreen, Component title, UnmodifiableConfig config) {
-            super(lastScreen, title, lastScreen.background, lastScreen.valueToUnit);
-            this.searchEntries = this.gatherEntriesRecursive(config, lastScreen.valueToUnit);
-            this.screenEntries = config.valueMap().values().stream().map(lastScreen.valueToUnit::get).toList();
+            super(lastScreen, title, lastScreen.background, lastScreen.valueToData);
+            this.searchEntries = this.gatherEntriesRecursive(config, lastScreen.valueToData);
+            this.screenEntries = config.valueMap().values().stream().map(lastScreen.valueToData::get).toList();
             this.buildSubScreens(this.screenEntries);
         }
 
-        private List<IEntryUnit> gatherEntriesRecursive(UnmodifiableConfig mainConfig, Map<Object, IEntryUnit> allEntries) {
-            List<IEntryUnit> entries = Lists.newArrayList();
+        private List<IEntryData> gatherEntriesRecursive(UnmodifiableConfig mainConfig, Map<Object, IEntryData> allEntries) {
+            List<IEntryData> entries = Lists.newArrayList();
             this.gatherEntriesRecursive(mainConfig, entries, allEntries);
             return ImmutableList.copyOf(entries);
         }
@@ -398,22 +395,7 @@ public abstract class ConfigScreen extends Screen {
 
     @Override
     public void renderDirtBackground(int vOffset) {
-        renderDirtBackground(this, this.background, vOffset);
-    }
-
-    public static void renderDirtBackground(Screen screen, ResourceLocation background, int vOffset) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder builder = tesselator.getBuilder();
-        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-        RenderSystem.setShaderTexture(0, background);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        float size = 32.0F;
-        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-        builder.vertex(0.0D, screen.height, 0.0D).uv(0.0F, screen.height / size + vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(screen.width, screen.height, 0.0D).uv(screen.width / size, screen.height / size + vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(screen.width, 0.0D, 0.0D).uv(screen.width / size, vOffset).color(64, 64, 64, 255).endVertex();
-        builder.vertex(0.0D, 0.0D, 0.0D).uv(0.0F, vOffset).color(64, 64, 64, 255).endVertex();
-        tesselator.end();
+        ScreenUtil.renderCustomBackground(this, this.background, vOffset);
     }
 
     @Override
@@ -426,7 +408,7 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    void gatherEntriesRecursive(UnmodifiableConfig mainConfig, List<IEntryUnit> entries, Map<Object, IEntryUnit> allEntries) {
+    void gatherEntriesRecursive(UnmodifiableConfig mainConfig, List<IEntryData> entries, Map<Object, IEntryData> allEntries) {
         mainConfig.valueMap().values().forEach(value -> {
             entries.add(allEntries.get(value));
             if (value instanceof UnmodifiableConfig config) {
@@ -437,11 +419,11 @@ public abstract class ConfigScreen extends Screen {
 
     abstract List<ConfigScreen.Entry> getConfigListEntries(String query);
 
-    List<ConfigScreen.Entry> getConfigListEntries(List<IEntryUnit> entries, final String query) {
+    List<ConfigScreen.Entry> getConfigListEntries(List<IEntryData> entries, final String query) {
         return entries.stream()
                 // set query to units so the can highlight matches
                 .peek(unit -> unit.setSearchQuery(query))
-                .filter(IEntryUnit::containsSearchQuery)
+                .filter(IEntryData::containsSearchQuery)
                 .sorted()
                 .map(this::makeEntry)
                 // there might be an unsupported value which will return null
@@ -449,12 +431,12 @@ public abstract class ConfigScreen extends Screen {
                 .toList();
     }
 
-    void buildSubScreens(List<IEntryUnit> screenEntries) {
+    void buildSubScreens(List<IEntryData> screenEntries) {
         // every screen must build their own direct sub screens so when searching we can jump between screens in their actual hierarchical order
         // having screens stored like this is ok as everything else will be reset during init when the screen is opened anyways
-        for (IEntryUnit unit : screenEntries) {
-            if (unit instanceof CategoryEntryUnit categoryEntryUnit) {
-                categoryEntryUnit.setScreen(new Sub(this, categoryEntryUnit.getTitle(), categoryEntryUnit.getConfig()));
+        for (IEntryData unit : screenEntries) {
+            if (unit instanceof CategoryEntryData categoryEntryData) {
+                categoryEntryData.setScreen(new Sub(this, categoryEntryData.getTitle(), categoryEntryData.getConfig()));
             }
         }
     }
@@ -464,27 +446,27 @@ public abstract class ConfigScreen extends Screen {
     }
 
     @SuppressWarnings("unchecked")
-    Entry makeEntry(IEntryUnit entryUnit) {
-        if (entryUnit instanceof CategoryEntryUnit categoryEntryUnit) {
-            return new CategoryEntry(categoryEntryUnit.getDisplayTitle(), categoryEntryUnit.getScreen());
-        } else if (entryUnit instanceof ConfigEntryUnit<?> configEntryUnit) {
-            final Object currentValue = configEntryUnit.getCurrentValue();
+    Entry makeEntry(IEntryData entryData) {
+        if (entryData instanceof CategoryEntryData categoryEntryData) {
+            return new CategoryEntry(categoryEntryData.getDisplayTitle(), categoryEntryData.getScreen());
+        } else if (entryData instanceof ConfigEntryData<?> configEntryData) {
+            final Object currentValue = configEntryData.getCurrentValue();
             if (currentValue instanceof Boolean) {
-                return new BooleanEntry((ConfigEntryUnit<Boolean>) entryUnit);
+                return new BooleanEntry((ConfigEntryData<Boolean>) entryData);
             } else if (currentValue instanceof Integer) {
-                return new NumberEntry<>((ConfigEntryUnit<Integer>) entryUnit, Integer::parseInt);
+                return new NumberEntry<>((ConfigEntryData<Integer>) entryData, Integer::parseInt);
             } else if (currentValue instanceof Double) {
-                return new NumberEntry<>((ConfigEntryUnit<Double>) entryUnit, Double::parseDouble);
+                return new NumberEntry<>((ConfigEntryData<Double>) entryData, Double::parseDouble);
             } else if (currentValue instanceof Long) {
-                return new NumberEntry<>((ConfigEntryUnit<Long>) entryUnit, Long::parseLong);
+                return new NumberEntry<>((ConfigEntryData<Long>) entryData, Long::parseLong);
             } else if (currentValue instanceof Enum<?>) {
-                return new EnumEntry((ConfigEntryUnit<Enum<?>>) entryUnit);
+                return new EnumEntry((ConfigEntryData<Enum<?>>) entryData);
             } else if (currentValue instanceof String) {
-                return new StringEntry((ConfigEntryUnit<String>) entryUnit);
+                return new StringEntry((ConfigEntryData<String>) entryData);
             } else if (currentValue instanceof List<?> listValue) {
-                Object value = this.getListValue(((ConfigEntryUnit<List<?>>) entryUnit).getDefaultValue(), listValue);
+                Object value = this.getListValue(((ConfigEntryData<List<?>>) entryData).getDefaultValue(), listValue);
                 try {
-                    return this.makeListEntry(entryUnit, value);
+                    return this.makeListEntry(entryData, value);
                 } catch (RuntimeException e) {
                     Configured.LOGGER.warn("Unable to add list entry containing class type {}", value.getClass().getSimpleName(), e);
                 }
@@ -496,24 +478,24 @@ public abstract class ConfigScreen extends Screen {
     }
 
     @SuppressWarnings("unchecked")
-    private ListEntry<?> makeListEntry(IEntryUnit entryUnit, Object value) throws RuntimeException {
+    private ListEntry<?> makeListEntry(IEntryData entryData, Object value) throws RuntimeException {
         if (value instanceof Boolean) {
-            return new ListEntry<>((ConfigEntryUnit<List<Boolean>>) entryUnit, Boolean.class, v -> switch (v.toLowerCase(Locale.ROOT)) {
+            return new ListEntry<>((ConfigEntryData<List<Boolean>>) entryData, Boolean.class, v -> switch (v.toLowerCase(Locale.ROOT)) {
                 case "true" -> true;
                 case "false" -> false;
                 // is caught when editing
                 default -> throw new IllegalArgumentException("unable to convert boolean value");
             });
         } else if (value instanceof Integer) {
-            return new ListEntry<>((ConfigEntryUnit<List<Integer>>) entryUnit, Integer.class, Integer::parseInt);
+            return new ListEntry<>((ConfigEntryData<List<Integer>>) entryData, Integer.class, Integer::parseInt);
         } else if (value instanceof Double) {
-            return new ListEntry<>((ConfigEntryUnit<List<Double>>) entryUnit, Double.class, Double::parseDouble);
+            return new ListEntry<>((ConfigEntryData<List<Double>>) entryData, Double.class, Double::parseDouble);
         } else if (value instanceof Long) {
-            return new ListEntry<>((ConfigEntryUnit<List<Long>>) entryUnit, Long.class, Long::parseLong);
+            return new ListEntry<>((ConfigEntryData<List<Long>>) entryData, Long.class, Long::parseLong);
         } else if (value instanceof Enum<?>) {
-            return new EnumListEntry((ConfigEntryUnit<List<Enum<?>>>) entryUnit, (Class<Enum<?>>) value.getClass());
+            return new EnumListEntry((ConfigEntryData<List<Enum<?>>>) entryData, (Class<Enum<?>>) value.getClass());
         } else if (value instanceof String) {
-            return new ListEntry<>((ConfigEntryUnit<List<String>>) entryUnit, String.class, s -> {
+            return new ListEntry<>((ConfigEntryData<List<String>>) entryData, String.class, s -> {
                 if (s.isEmpty()) {
                     throw new IllegalArgumentException("string must not be empty");
                 }
@@ -521,7 +503,7 @@ public abstract class ConfigScreen extends Screen {
             });
         } else {
             // string list with warning screen
-            return new DangerousListEntry((ConfigEntryUnit<List<String>>) entryUnit);
+            return new DangerousListEntry((ConfigEntryData<List<String>>) entryData);
         }
     }
 
@@ -544,12 +526,12 @@ public abstract class ConfigScreen extends Screen {
 
             @Override
             public void renderDirtBackground(int vOffset) {
-                ConfigScreen.renderDirtBackground(this, ConfigScreen.this.background, vOffset);
+                ScreenUtil.renderCustomBackground(this, ConfigScreen.this.background, vOffset);
             }
         };
     }
 
-    interface IEntryUnit extends Comparable<EntryUnit> {
+    interface IEntryData extends Comparable<EntryData> {
 
         Component getTitle();
 
@@ -633,7 +615,7 @@ public abstract class ConfigScreen extends Screen {
         void saveConfigValue();
 
         @Override
-        default int compareTo(@NotNull EntryUnit other) {
+        default int compareTo(@NotNull ConfigScreen.EntryData other) {
             int compare = this.getTitle().getString().compareTo(other.getTitle().getString());
             if (this.withPath()) {
                 // when searching sort by index of query, only if both match sort alphabetically
@@ -647,12 +629,12 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    static class EntryUnit implements IEntryUnit {
+    static class EntryData implements IEntryData {
 
         private final Component title;
         private String searchQuery = "";
 
-        public EntryUnit(Component title) {
+        public EntryData(Component title) {
             this.title = title;
         }
 
@@ -692,12 +674,12 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    static class CategoryEntryUnit extends EntryUnit {
+    static class CategoryEntryData extends EntryData {
 
         private final UnmodifiableConfig config;
         private ConfigScreen screen;
 
-        public CategoryEntryUnit(Component title, UnmodifiableConfig config) {
+        public CategoryEntryData(Component title, UnmodifiableConfig config) {
             super(title);
             this.config = config;
         }
@@ -715,13 +697,13 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
-    static class ConfigEntryUnit<T> extends EntryUnit {
+    static class ConfigEntryData<T> extends EntryData {
 
         private final ForgeConfigSpec.ConfigValue<T> configValue;
         private final ForgeConfigSpec.ValueSpec valueSpec;
         private T currentValue;
 
-        public ConfigEntryUnit(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
+        public ConfigEntryData(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
             super(ConfigScreen.createLabel(configValue, valueSpec));
             this.configValue = configValue;
             this.valueSpec = valueSpec;
@@ -803,7 +785,7 @@ public abstract class ConfigScreen extends Screen {
         public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
 
             if (ConfigScreen.this.list != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
-                ConfigScreen.this.setActiveTooltip(this.getTooltip());
+                ConfigScreen.this.setActiveTooltip(this.tooltip);
             }
         }
 
@@ -899,35 +881,35 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     public abstract class ConfigEntry<T> extends Entry {
         private final List<AbstractWidget> children = Lists.newArrayList();
-        private final ConfigEntryUnit<T> configEntryUnit;
+        private final ConfigEntryData<T> configEntryData;
         private final FormattedCharSequence visualTitle;
         final Button resetButton;
 
-        public ConfigEntry(ConfigEntryUnit<T> configEntryUnit) {
-            this(configEntryUnit, Object::toString);
+        public ConfigEntry(ConfigEntryData<T> configEntryData) {
+            this(configEntryData, Object::toString);
         }
 
-        public ConfigEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString) {
+        public ConfigEntry(ConfigEntryData<T> configEntryData, Function<T, String> toString) {
             // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
-            super(configEntryUnit.getDisplayTitle(), makeTooltip(ConfigScreen.this.font, configEntryUnit, toString));
-            this.configEntryUnit = configEntryUnit;
+            super(configEntryData.getDisplayTitle(), makeTooltip(ConfigScreen.this.font, configEntryData, toString));
+            this.configEntryData = configEntryData;
             FormattedText truncatedTitle = this.getTruncatedText(ConfigScreen.this.font, this.getTitle(), 260 - 70, Style.EMPTY);
             this.visualTitle = Language.getInstance().getVisualOrder(truncatedTitle);
             final List<FormattedCharSequence> formattedCharSequences = ConfigScreen.this.font.split(new TranslatableComponent("configured.gui.tooltip.reset"), 200);
             this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, button -> {
-                configEntryUnit.resetCurrentValue();
-                this.onConfigValueChanged(configEntryUnit.getCurrentValue(), true);
+                configEntryData.resetCurrentValue();
+                this.onConfigValueChanged(configEntryData.getCurrentValue(), true);
             }, (button, matrixStack, mouseX, mouseY) -> {
                 if (button.active) {
                     ConfigScreen.this.setActiveTooltip(formattedCharSequences);
                 }
             });
-            this.resetButton.active = configEntryUnit.mayResetValue();
+            this.resetButton.active = configEntryData.mayResetValue();
             this.children.add(this.resetButton);
         }
 
         public void onConfigValueChanged(T newValue, boolean reset) {
-            this.resetButton.active = this.configEntryUnit.mayResetValue();
+            this.resetButton.active = this.configEntryData.mayResetValue();
             ConfigScreen.this.updateRestoreButton();
         }
 
@@ -961,7 +943,7 @@ public abstract class ConfigScreen extends Screen {
 
                 @Override
                 public void updateNarration(NarrationElementOutput output) {
-                    String comment = ConfigEntry.this.configEntryUnit.getValueSpec().getComment();
+                    String comment = ConfigEntry.this.configEntryData.getValueSpec().getComment();
                     if (comment != null) {
                         output.add(NarratedElementType.TITLE, new TextComponent("").append(ConfigEntry.this.getTitle()).append(", " + comment));
                     } else {
@@ -973,8 +955,8 @@ public abstract class ConfigScreen extends Screen {
             return builder.build();
         }
 
-        static <T> List<FormattedCharSequence> makeTooltip(Font font, ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString) {
-            return makeTooltip(font, configEntryUnit.getPath(), configEntryUnit.getValueSpec().getComment(), toString.apply(configEntryUnit.getDefaultValue()), configEntryUnit.withPath());
+        static <T> List<FormattedCharSequence> makeTooltip(Font font, ConfigEntryData<T> configEntryData, Function<T, String> toString) {
+            return makeTooltip(font, configEntryData.getPath(), configEntryData.getValueSpec().getComment(), toString.apply(configEntryData.getDefaultValue()), configEntryData.withPath());
         }
 
         private static List<FormattedCharSequence> makeTooltip(Font font, List<String> path, String comment, String defaultValue, boolean withPath) {
@@ -1018,31 +1000,31 @@ public abstract class ConfigScreen extends Screen {
     public class NumberEntry<T> extends ConfigEntry<T> {
         private final ConfigEditBox textField;
 
-        public NumberEntry(ConfigEntryUnit<T> configEntryUnit, Function<String, T> parser) {
-            super(configEntryUnit);
+        public NumberEntry(ConfigEntryData<T> configEntryData, Function<String, T> parser) {
+            super(configEntryData);
             this.textField = new ConfigEditBox(ConfigScreen.this.font, 0, 0, 42, 18, () -> ConfigScreen.this.activeTextField, activeTextField -> ConfigScreen.this.activeTextField = activeTextField);
             this.textField.setResponder(input -> {
                 T number = null;
                 try {
                     T parsed = parser.apply(input);
-                    if (configEntryUnit.getValueSpec().test(parsed)) {
+                    if (configEntryData.getValueSpec().test(parsed)) {
                         number = parsed;
                     }
                 } catch (NumberFormatException ignored) {
                 }
                 if (number != null) {
                     this.textField.markInvalid(false);
-                    configEntryUnit.setCurrentValue(number);
+                    configEntryData.setCurrentValue(number);
                     this.onConfigValueChanged(number, false);
                 } else {
                     this.textField.markInvalid(true);
-                    configEntryUnit.resetCurrentValue();
+                    configEntryData.resetCurrentValue();
                     // provides an easy way to make text field usable again, even though default value is already set in background
                     this.resetButton.active = true;
                     ConfigScreen.this.updateRestoreButton();
                 }
             });
-            this.textField.setValue(configEntryUnit.getCurrentValue().toString());
+            this.textField.setValue(configEntryData.getCurrentValue().toString());
             this.children().add(this.textField);
         }
 
@@ -1067,11 +1049,11 @@ public abstract class ConfigScreen extends Screen {
     public class BooleanEntry extends ConfigEntry<Boolean> {
         private final Button button;
 
-        public BooleanEntry(ConfigEntryUnit<Boolean> configEntryUnit) {
-            super(configEntryUnit);
-            this.button = new Button(10, 5, 44, 20, CommonComponents.optionStatus(configEntryUnit.getCurrentValue()), button -> {
-                final boolean newValue = !configEntryUnit.getCurrentValue();
-                configEntryUnit.setCurrentValue(newValue);
+        public BooleanEntry(ConfigEntryData<Boolean> configEntryData) {
+            super(configEntryData);
+            this.button = new Button(10, 5, 44, 20, CommonComponents.optionStatus(configEntryData.getCurrentValue()), button -> {
+                final boolean newValue = !configEntryData.getCurrentValue();
+                configEntryData.setCurrentValue(newValue);
                 this.onConfigValueChanged(newValue, false);
             });
             this.children().add(this.button);
@@ -1096,13 +1078,13 @@ public abstract class ConfigScreen extends Screen {
     public abstract class EditScreenEntry<T> extends ConfigEntry<T> {
         private final Button button;
 
-        public EditScreenEntry(ConfigEntryUnit<T> configEntryUnit, Function<T, String> toString, Class<?> type) {
-            super(configEntryUnit, toString);
+        public EditScreenEntry(ConfigEntryData<T> configEntryData, Function<T, String> toString, Class<?> type) {
+            super(configEntryData, toString);
             this.button = new Button(10, 5, 44, 20, new TranslatableComponent("configured.gui.edit"), button -> {
                 // safety precaution for dealing with lists
                 try {
-                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(type.getSimpleName(), configEntryUnit.getCurrentValue(), configEntryUnit.getValueSpec(), currentValue -> {
-                        configEntryUnit.setCurrentValue(currentValue);
+                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(type.getSimpleName(), configEntryData.getCurrentValue(), configEntryData.getValueSpec(), currentValue -> {
+                        configEntryData.setCurrentValue(currentValue);
                         this.onConfigValueChanged(currentValue, false);
                     }));
                 } catch (RuntimeException e) {
@@ -1126,25 +1108,25 @@ public abstract class ConfigScreen extends Screen {
 
     @Environment(EnvType.CLIENT)
     public class EnumEntry extends EditScreenEntry<Enum<?>> {
-        public EnumEntry(ConfigEntryUnit<Enum<?>> configEntryUnit) {
-            super(configEntryUnit, v -> formatLabel(v.name().toLowerCase(Locale.ROOT)).getString(), Enum.class);
+        public EnumEntry(ConfigEntryData<Enum<?>> configEntryData) {
+            super(configEntryData, v -> formatLabel(v.name().toLowerCase(Locale.ROOT)).getString(), Enum.class);
         }
 
         @Override
         Screen makeEditScreen(String type, Enum<?> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<Enum<?>> onSave) {
-            return new EditEnumScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.select", type), currentValue, currentValue.getDeclaringClass().getEnumConstants(), valueSpec::test, onSave);
+            return new EditEnumScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.select", type), ConfigScreen.this.background, currentValue, currentValue.getDeclaringClass().getEnumConstants(), valueSpec::test, onSave);
         }
     }
 
     @Environment(EnvType.CLIENT)
     public class StringEntry extends EditScreenEntry<String> {
-        public StringEntry(ConfigEntryUnit<String> configEntryUnit) {
-            super(configEntryUnit, Function.identity(), String.class);
+        public StringEntry(ConfigEntryData<String> configEntryData) {
+            super(configEntryData, Function.identity(), String.class);
         }
 
         @Override
         Screen makeEditScreen(String type, String currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<String> onSave) {
-            return new EditStringScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.edit", type), currentValue, valueSpec::test, onSave);
+            return new EditStringScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.value.edit", type), ConfigScreen.this.background, currentValue, valueSpec::test, onSave);
         }
     }
 
@@ -1153,19 +1135,19 @@ public abstract class ConfigScreen extends Screen {
         private final Function<Object, String> toString;
         private final Function<String, T> fromString;
 
-        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<String, T> fromString) {
-            this(configEntryUnit, type, Object::toString, fromString);
+        public ListEntry(ConfigEntryData<List<T>> configEntryData, Class<T> type, Function<String, T> fromString) {
+            this(configEntryData, type, Object::toString, fromString);
         }
 
-        public ListEntry(ConfigEntryUnit<List<T>> configEntryUnit, Class<T> type, Function<Object, String> toString, Function<String, T> fromString) {
-            super(configEntryUnit, v -> "[" + v.stream().map(toString).collect(Collectors.joining(", ")) + "]", type);
+        public ListEntry(ConfigEntryData<List<T>> configEntryData, Class<T> type, Function<Object, String> toString, Function<String, T> fromString) {
+            super(configEntryData, v -> "[" + v.stream().map(toString).collect(Collectors.joining(", ")) + "]", type);
             this.toString = toString;
             this.fromString = fromString;
         }
 
         @Override
         Screen makeEditScreen(String type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
-            return new EditListScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.list.edit", type), currentValue.stream()
+            return new EditListScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.list.edit", type), ConfigScreen.this.background, currentValue.stream()
                     .map(this.toString)
                     .collect(Collectors.toList()), input -> {
                 try {
@@ -1188,16 +1170,16 @@ public abstract class ConfigScreen extends Screen {
 
         // mainly here to enable unchecked cast
         @SuppressWarnings("unchecked")
-        public <T extends Enum<T>> EnumListEntry(ConfigEntryUnit<List<Enum<?>>> configEntryUnit, Class<Enum<?>> clazz) {
+        public <T extends Enum<T>> EnumListEntry(ConfigEntryData<List<Enum<?>>> configEntryData, Class<Enum<?>> clazz) {
             // enums are read as strings from file
-            super(configEntryUnit, clazz, v -> v instanceof Enum<?> e ? e.name() : v.toString(), v -> Enum.valueOf((Class<T>) clazz, v));
+            super(configEntryData, clazz, v -> v instanceof Enum<?> e ? e.name() : v.toString(), v -> Enum.valueOf((Class<T>) clazz, v));
         }
     }
 
     @Environment(EnvType.CLIENT)
     public class DangerousListEntry extends ListEntry<String> {
-        public DangerousListEntry(ConfigEntryUnit<List<String>> configEntryUnit) {
-            super(configEntryUnit, String.class, s -> {
+        public DangerousListEntry(ConfigEntryData<List<String>> configEntryData) {
+            super(configEntryData, String.class, s -> {
                 if (s.isEmpty()) {
                     throw new IllegalArgumentException("string must not be empty");
                 }
@@ -1218,7 +1200,7 @@ public abstract class ConfigScreen extends Screen {
 
                 @Override
                 public void renderDirtBackground(int vOffset) {
-                    ConfigScreen.renderDirtBackground(this, ConfigScreen.this.background, vOffset);
+                    ScreenUtil.renderCustomBackground(this, ConfigScreen.this.background, vOffset);
                 }
 
             };
@@ -1226,9 +1208,9 @@ public abstract class ConfigScreen extends Screen {
     }
 
     @Environment(EnvType.CLIENT)
-    public class ConfigList extends ContainerObjectSelectionList<Entry> {
+    public class ConfigList extends CustomBackgroundContainerObjectSelectionList<Entry> {
         public ConfigList(List<ConfigScreen.Entry> entries) {
-            super(ConfigScreen.this.minecraft, ConfigScreen.this.width, ConfigScreen.this.height, 50, ConfigScreen.this.height - 36, 24);
+            super(ConfigScreen.this.minecraft, ConfigScreen.this.background, ConfigScreen.this.width, ConfigScreen.this.height, 50, ConfigScreen.this.height - 36, 24);
             entries.forEach(this::addEntry);
         }
 
@@ -1249,135 +1231,33 @@ public abstract class ConfigScreen extends Screen {
             this.setScrollAmount(0.0);
         }
 
-        private void renderToolTips(PoseStack poseStack, int mouseX, int mouseY) {
-            if (ConfigScreen.this.list != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
-                ConfigScreen.Entry entry = this.getEntryAtPosition(mouseX, mouseY);
-                if (entry != null) {
-                    ConfigScreen.this.setActiveTooltip(entry.getTooltip());
-                }
-            }
-        }
-
-        /**
-         * Literally just a copy of the original since the background can't be changed
-         *
-         * @param poseStack    the current matrix stack
-         * @param mouseX       the current mouse x position
-         * @param mouseY       the current mouse y position
-         * @param partialTicks the partial ticks
-         */
         @Override
-        public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-            this.renderBackground(poseStack);
-            int scrollBarStart = this.getScrollbarPosition();
-            int scrollBarEnd = scrollBarStart + 6;
-
-            RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-            RenderSystem.setShaderTexture(0, ConfigScreen.this.background);
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-            Tesselator tesselator = Tesselator.getInstance();
-            BufferBuilder buffer = tesselator.getBuilder();
-
-            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-            buffer.vertex(this.x0, this.y1, 0.0D).uv(this.x0 / 32.0F, (this.y1 + (int) this.getScrollAmount()) / 32.0F).color(32, 32, 32, 255).endVertex();
-            buffer.vertex(this.x1, this.y1, 0.0D).uv(this.x1 / 32.0F, (this.y1 + (int) this.getScrollAmount()) / 32.0F).color(32, 32, 32, 255).endVertex();
-            buffer.vertex(this.x1, this.y0, 0.0D).uv(this.x1 / 32.0F, (this.y0 + (int) this.getScrollAmount()) / 32.0F).color(32, 32, 32, 255).endVertex();
-            buffer.vertex(this.x0, this.y0, 0.0D).uv(this.x0 / 32.0F, (this.y0 + (int) this.getScrollAmount()) / 32.0F).color(32, 32, 32, 255).endVertex();
-            tesselator.end();
-
-            int rowLeft = this.getRowLeft();
-            int scrollOffset = this.y0 + 4 - (int) this.getScrollAmount();
-            this.renderList(poseStack, rowLeft, scrollOffset, mouseX, mouseY, partialTicks);
-
-            RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-            RenderSystem.setShaderTexture(0, ConfigScreen.this.background);
-            RenderSystem.enableDepthTest();
-            RenderSystem.depthFunc(519);
-
-            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-            buffer.vertex(this.x0, this.y0, -100.0D).uv(0.0F, this.y0 / 32.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex((this.x0 + this.width), this.y0, -100.0D).uv(this.width / 32.0F, this.y0 / 32.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex((this.x0 + this.width), 0.0D, -100.0D).uv(this.width / 32.0F, 0.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex(this.x0, 0.0D, -100.0D).uv(0.0F, 0.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex(this.x0, this.height, -100.0D).uv(0.0F, this.height / 32.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex((this.x0 + this.width), this.height, -100.0D).uv(this.width / 32.0F, this.height / 32.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex((this.x0 + this.width), this.y1, -100.0D).uv(this.width / 32.0F, this.y1 / 32.0F).color(64, 64, 64, 255).endVertex();
-            buffer.vertex(this.x0, this.y1, -100.0D).uv(0.0F, this.y1 / 32.0F).color(64, 64, 64, 255).endVertex();
-            tesselator.end();
-
-            RenderSystem.depthFunc(515);
-            RenderSystem.disableDepthTest();
-            RenderSystem.enableBlend();
-            RenderSystem.blendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ZERO, GlStateManager.DestFactor.ONE);
-            RenderSystem.disableTexture();
-            RenderSystem.setShader(GameRenderer::getPositionColorShader);
-
-            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-            buffer.vertex(this.x0, this.y0 + 4, 0.0D).uv(0.0F, 1.0F).color(0, 0, 0, 0).endVertex();
-            buffer.vertex(this.x1, this.y0 + 4, 0.0D).uv(1.0F, 1.0F).color(0, 0, 0, 0).endVertex();
-            buffer.vertex(this.x1, this.y0, 0.0D).uv(1.0F, 0.0F).color(0, 0, 0, 255).endVertex();
-            buffer.vertex(this.x0, this.y0, 0.0D).uv(0.0F, 0.0F).color(0, 0, 0, 255).endVertex();
-            buffer.vertex(this.x0, this.y1, 0.0D).uv(0.0F, 1.0F).color(0, 0, 0, 255).endVertex();
-            buffer.vertex(this.x1, this.y1, 0.0D).uv(1.0F, 1.0F).color(0, 0, 0, 255).endVertex();
-            buffer.vertex(this.x1, this.y1 - 4, 0.0D).uv(1.0F, 0.0F).color(0, 0, 0, 0).endVertex();
-            buffer.vertex(this.x0, this.y1 - 4, 0.0D).uv(0.0F, 0.0F).color(0, 0, 0, 0).endVertex();
-            tesselator.end();
-
-            int maxScroll = Math.max(0, this.getMaxPosition() - (this.y1 - this.y0 - 4));
-            if (maxScroll > 0) {
-                RenderSystem.disableTexture();
-                RenderSystem.setShader(GameRenderer::getPositionColorShader);
-
-                int scrollBarStartY = (int) ((float) ((this.y1 - this.y0) * (this.y1 - this.y0)) / (float) this.getMaxPosition());
-                scrollBarStartY = Mth.clamp(scrollBarStartY, 32, this.y1 - this.y0 - 8);
-                int scrollBarEndY = (int) this.getScrollAmount() * (this.y1 - this.y0 - scrollBarStartY) / maxScroll + this.y0;
-                if (scrollBarEndY < this.y0) {
-                    scrollBarEndY = this.y0;
-                }
-
-                buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-                buffer.vertex(scrollBarStart, this.y1, 0.0D).uv(0.0F, 1.0F).color(0, 0, 0, 255).endVertex();
-                buffer.vertex(scrollBarEnd, this.y1, 0.0D).uv(1.0F, 1.0F).color(0, 0, 0, 255).endVertex();
-                buffer.vertex(scrollBarEnd, this.y0, 0.0D).uv(1.0F, 0.0F).color(0, 0, 0, 255).endVertex();
-                buffer.vertex(scrollBarStart, this.y0, 0.0D).uv(0.0F, 0.0F).color(0, 0, 0, 255).endVertex();
-                buffer.vertex(scrollBarStart, scrollBarEndY + scrollBarStartY, 0.0D).uv(0.0F, 1.0F).color(128, 128, 128, 255).endVertex();
-                buffer.vertex(scrollBarEnd, scrollBarEndY + scrollBarStartY, 0.0D).uv(1.0F, 1.0F).color(128, 128, 128, 255).endVertex();
-                buffer.vertex(scrollBarEnd, scrollBarEndY, 0.0D).uv(1.0F, 0.0F).color(128, 128, 128, 255).endVertex();
-                buffer.vertex(scrollBarStart, scrollBarEndY, 0.0D).uv(0.0F, 0.0F).color(128, 128, 128, 255).endVertex();
-                buffer.vertex(scrollBarStart, scrollBarEndY + scrollBarStartY - 1, 0.0D).uv(0.0F, 1.0F).color(192, 192, 192, 255).endVertex();
-                buffer.vertex(scrollBarEnd - 1, scrollBarEndY + scrollBarStartY - 1, 0.0D).uv(1.0F, 1.0F).color(192, 192, 192, 255).endVertex();
-                buffer.vertex(scrollBarEnd - 1, scrollBarEndY, 0.0D).uv(1.0F, 0.0F).color(192, 192, 192, 255).endVertex();
-                buffer.vertex(scrollBarStart, scrollBarEndY, 0.0D).uv(0.0F, 0.0F).color(192, 192, 192, 255).endVertex();
-                tesselator.end();
+        public void render(PoseStack poseStack, int i, int j, float f) {
+            super.render(poseStack, i, j, f);
+            ConfigScreen.Entry entry = this.getHovered();
+            if (entry != null) {
+                ConfigScreen.this.setActiveTooltip(entry.getTooltip());
             }
-
-            this.renderDecorations(poseStack, mouseX, mouseY);
-
-            RenderSystem.enableTexture();
-            RenderSystem.disableBlend();
-
-            this.renderToolTips(poseStack, mouseX, mouseY);
         }
     }
 
     public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, Map<ModConfig.Type, List<ForgeConfigSpec>> typeToSpecs) {
-        return new ConfigScreen.Main(lastScreen, title, background, typeToSpecs, makeValueToUnitMap(mergeValues(typeToSpecs.values())));
+        return new ConfigScreen.Main(lastScreen, title, background, typeToSpecs, makeValueToDataMap(mergeValues(typeToSpecs.values())));
     }
 
-    private static Map<Object, IEntryUnit> makeValueToUnitMap(List<ForgeConfigSpec> specs) {
-        Map<Object, IEntryUnit> allUnits = Maps.newHashMap();
-        specs.forEach(spec -> makeValueToUnitMap(spec, spec.getValues(), allUnits));
-        return ImmutableMap.copyOf(allUnits);
+    private static Map<Object, IEntryData> makeValueToDataMap(List<ForgeConfigSpec> specs) {
+        Map<Object, IEntryData> allData = Maps.newHashMap();
+        specs.forEach(spec -> makeValueToDataMap(spec, spec.getValues(), allData));
+        return ImmutableMap.copyOf(allData);
     }
 
-    private static void makeValueToUnitMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryUnit> allUnits) {
+    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryData> allData) {
         values.valueMap().forEach((path, value) -> {
             if (value instanceof UnmodifiableConfig configValue) {
-                allUnits.put(configValue, new CategoryEntryUnit(ConfigScreen.formatLabel(path), configValue));
-                makeValueToUnitMap(spec, configValue, allUnits);
+                allData.put(configValue, new CategoryEntryData(ConfigScreen.formatLabel(path), configValue));
+                makeValueToDataMap(spec, configValue, allData);
             } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
-                allUnits.put(configValue, new ConfigEntryUnit<>(configValue, spec.getRaw(configValue.getPath())));
+                allData.put(configValue, new ConfigEntryData<>(configValue, spec.getRaw(configValue.getPath())));
             }
         });
     }

@@ -18,6 +18,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import org.apache.commons.lang3.mutable.MutableObject;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings("ConstantConditions")
 public class EditListScreen extends Screen {
     private final Screen lastScreen;
+    private final ResourceLocation background;
     private final List<MutableObject<String>> values;
     private final Predicate<String> validator;
     private final Consumer<List<String>> onSave;
@@ -46,9 +48,10 @@ public class EditListScreen extends Screen {
     private List<? extends FormattedCharSequence> activeTooltip;
     private int tooltipTicks;
 
-    public EditListScreen(Screen lastScreen, Component title, List<String> listValue, Predicate<String> validator, Consumer<List<String>> onSave) {
+    public EditListScreen(Screen lastScreen, Component title, ResourceLocation background, List<String> listValue, Predicate<String> validator, Consumer<List<String>> onSave) {
         super(title);
         this.lastScreen = lastScreen;
+        this.background = background;
         this.values = listValue.stream()
                 .map(MutableObject::new)
                 .collect(Collectors.toList());
@@ -126,9 +129,9 @@ public class EditListScreen extends Screen {
     }
 
     @Environment(EnvType.CLIENT)
-    public class EditList extends ContainerObjectSelectionList<EditListEntry> {
+    public class EditList extends CustomBackgroundContainerObjectSelectionList<EditListEntry> {
         public EditList() {
-            super(EditListScreen.this.minecraft, EditListScreen.this.width, EditListScreen.this.height, 36, EditListScreen.this.height - 36, 24);
+            super(EditListScreen.this.minecraft, EditListScreen.this.background, EditListScreen.this.width, EditListScreen.this.height, 36, EditListScreen.this.height - 36, 24);
             EditListScreen.this.values.forEach(value -> {
                 this.addEntry(new EditListEntry(this, value));
             });

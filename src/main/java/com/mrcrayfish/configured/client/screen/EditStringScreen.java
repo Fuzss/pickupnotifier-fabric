@@ -1,11 +1,13 @@
 package com.mrcrayfish.configured.client.screen;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mrcrayfish.configured.client.screen.util.ScreenUtil;
 import com.mrcrayfish.configured.client.screen.widget.ConfigEditBox;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -13,16 +15,19 @@ import java.util.function.Predicate;
 /**
  * Author: MrCrayfish
  */
+@SuppressWarnings("ConstantConditions")
 public class EditStringScreen extends Screen {
     private final Screen lastScreen;
+    private final ResourceLocation background;
     private String value;
     private final Predicate<String> validator;
     private final Consumer<String> onSave;
     private ConfigEditBox textField;
 
-    public EditStringScreen(Screen lastScreen, Component title, String value, Predicate<String> validator, Consumer<String> onSave) {
+    public EditStringScreen(Screen lastScreen, Component title, ResourceLocation background, String value, Predicate<String> validator, Consumer<String> onSave) {
         super(title);
         this.lastScreen = lastScreen;
+        this.background = background;
         this.value = value;
         this.validator = validator;
         this.onSave = onSave;
@@ -65,5 +70,10 @@ public class EditStringScreen extends Screen {
         this.textField.render(poseStack, mouseX, mouseY, partialTicks);
         drawCenteredString(poseStack, this.font, this.title, this.width / 2, this.height / 2 - 40, 0xFFFFFF);
         super.render(poseStack, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public void renderDirtBackground(int vOffset) {
+        ScreenUtil.renderCustomBackground(this, this.background, vOffset);
     }
 }

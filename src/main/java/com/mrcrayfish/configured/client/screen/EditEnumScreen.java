@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Comparator;
@@ -19,19 +20,22 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+@SuppressWarnings("ConstantConditions")
 @Environment(EnvType.CLIENT)
 public class EditEnumScreen extends Screen {
 
 	private final Screen lastScreen;
+	private final ResourceLocation background;
 	private Enum<?> value;
 	private final Enum<?>[] allValues;
 	private final Predicate<Enum<?>> validator;
 	private final Consumer<Enum<?>> onSave;
 	private EnumList list;
 
-	public EditEnumScreen(Screen lastScreen, Component title, Enum<?> value, Enum<?>[] allValues, Predicate<Enum<?>> validator, Consumer<Enum<?>> onSave) {
+	public EditEnumScreen(Screen lastScreen, Component title, ResourceLocation background, Enum<?> value, Enum<?>[] allValues, Predicate<Enum<?>> validator, Consumer<Enum<?>> onSave) {
 		super(title);
 		this.lastScreen = lastScreen;
+		this.background = background;
 		this.value = value;
 		this.allValues = allValues;
 		this.validator = validator;
@@ -69,10 +73,10 @@ public class EditEnumScreen extends Screen {
 	}
 
 	@Environment(EnvType.CLIENT)
-	private class EnumList extends ObjectSelectionList<EnumList.Entry> {
+	private class EnumList extends CustomBackgroundObjectSelectionList<EnumList.Entry> {
 
 		EnumList() {
-			super(EditEnumScreen.this.minecraft, EditEnumScreen.this.width, EditEnumScreen.this.height, 36, EditEnumScreen.this.height - 36, 16);
+			super(EditEnumScreen.this.minecraft, EditEnumScreen.this.background, EditEnumScreen.this.width, EditEnumScreen.this.height, 36, EditEnumScreen.this.height - 36, 16);
 			Stream.of(EditEnumScreen.this.allValues)
 					.filter(EditEnumScreen.this.validator)
 					.sorted(Comparator.comparing(Enum::name))
