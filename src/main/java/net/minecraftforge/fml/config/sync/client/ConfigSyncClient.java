@@ -39,7 +39,7 @@ public class ConfigSyncClient {
         String fileName = buf.readUtf(32767);
         byte[] fileData = buf.readByteArray();
         if (!Minecraft.getInstance().isLocalServer()) {
-            Optional.ofNullable(tracker.fileMap().get(fileName)).ifPresent(mc-> mc.acceptSyncedConfig(fileData));
+            Optional.ofNullable(this.tracker.fileMap().get(fileName)).ifPresent(config -> config.acceptSyncedConfig(fileData));
         }
         return fileName;
     }

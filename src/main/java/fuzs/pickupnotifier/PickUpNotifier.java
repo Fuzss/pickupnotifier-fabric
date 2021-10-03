@@ -1,5 +1,6 @@
 package fuzs.pickupnotifier;
 
+import com.mrcrayfish.configured.Configured;
 import fuzs.pickupnotifier.api.event.EntityItemPickupCallback;
 import fuzs.pickupnotifier.config.ClientConfig;
 import fuzs.pickupnotifier.config.ServerConfig;
@@ -76,6 +77,8 @@ public class PickUpNotifier implements ModInitializer {
         });
         ServerLifecycleEvents.SERVER_STARTING.register((MinecraftServer server) -> ConfigTracker.INSTANCE.loadConfigs(ModConfig.Type.SERVER, getServerConfigPath(server)));
         ServerLifecycleEvents.SERVER_STOPPED.register((MinecraftServer server) -> ConfigTracker.INSTANCE.unloadConfigs(ModConfig.Type.SERVER, getServerConfigPath(server)));
+
+        Configured.registerMessages();
     }
 
     private static final LevelResource SERVERCONFIG = LevelResourceAccessor.create("serverconfig");
@@ -111,7 +114,6 @@ public class PickUpNotifier implements ModInitializer {
     }
 
     private void registerMessages() {
-
         NetworkHandler.INSTANCE.register(S2CTakeItemMessage.class, S2CTakeItemMessage::new, NetworkDirection.PLAY_TO_CLIENT);
         NetworkHandler.INSTANCE.register(S2CTakeItemStackMessage.class, S2CTakeItemStackMessage::new, NetworkDirection.PLAY_TO_CLIENT);
     }

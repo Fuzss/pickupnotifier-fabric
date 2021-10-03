@@ -7,6 +7,9 @@ import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.gui.components.ConfigSelectionList;
 import com.mrcrayfish.configured.client.gui.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
+import com.mrcrayfish.configured.client.util.ServerConfigUploader;
+import com.mrcrayfish.configured.network.client.message.C2SAskPermissionsMessage;
+import fuzs.pickupnotifier.lib.network.NetworkHandler;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -49,7 +52,7 @@ public class SelectConfigScreen extends Screen {
 		this.configs = configs.stream().collect(Collectors.collectingAndThen(Collectors.toMap(Function.identity(), config -> {
 			return this.invalidData(config) ? Maps.<Object, IEntryData>newHashMap() : ConfigScreen.makeValueToDataMap((ForgeConfigSpec) config.getSpec());
 		}), ImmutableMap::copyOf));
-		this.serverPermissions = Minecraft.getInstance().isLocalServer();
+		this.initServerPermissions();
 	}
 
 	@Override
@@ -90,7 +93,7 @@ public class SelectConfigScreen extends Screen {
 							data.resetCurrentValue();
 							data.saveConfigValue();
 						});
-						((ForgeConfigSpec) config.getSpec()).save();
+						ServerConfigUploader.saveAndUpload(config);
 					}
 					this.minecraft.setScreen(this);
 				}, new TranslatableComponent("configured.gui.message.restore"), TextComponent.EMPTY, this.background);
@@ -107,12 +110,11 @@ public class SelectConfigScreen extends Screen {
 		this.updateButtonStatus(false);
 		this.list = new ConfigSelectionList(this, this.minecraft, this.width, this.height, 50, this.height - 60, 36, this.searchBox.getValue());
 		this.addWidget(this.list);
-		final List<FormattedCharSequence> tooltip = this.font.split(new TranslatableComponent("configured.gui.info"), 200);
 		this.addRenderableWidget(new ImageButton(23, 14, 19, 23, 0, 0, 0, ConfigScreen.LOGO_TEXTURE, 32, 32, button -> {
 			Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
 			this.handleComponentClicked(style);
 		}, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
-			this.renderTooltip(poseStack, tooltip, mouseX, mouseY);
+			this.renderTooltip(poseStack, this.font.split(ConfigScreen.INFO_TOOLTIP, 200), mouseX, mouseY);
 		}, TextComponent.EMPTY));
 		this.setInitialFocus(this.searchBox);
 	}
@@ -146,13 +148,27 @@ public class SelectConfigScreen extends Screen {
 	}
 
 	public void updateButtonStatus(boolean active) {
-		this.openButton.active = active;
-		this.fileButton.active = active;
 		if (this.list != null) {
-			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
-			active &= selected == null || selected.mayResetValue();
+			this.openButton.active = active;
+			this.fileButton.active = active;
+			if (active) {
+				final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
+				if (selected != null) {
+					this.fileButton.active = !selected.carefulEditing();
+					this.restoreButton.active = selected.mayResetValue();
+				} else {
+					this.fileButton.active = true;
+					this.restoreButton.active = true;
+				}
+			} else {
+				this.fileButton.active = false;
+				this.restoreButton.active = false;
+			}
+		} else {
+			this.openButton.active = false;
+			this.fileButton.active = false;
+			this.restoreButton.active = false;
 		}
-		this.restoreButton.active = active;
 	}
 
 	public void setToolTip(List<FormattedCharSequence> list) {
@@ -175,6 +191,18 @@ public class SelectConfigScreen extends Screen {
 		return this.configs.get(config);
 	}
 
+	private void initServerPermissions() {
+		// this.minecraft hasn't been set yet
+		Minecraft minecraft = Minecraft.getInstance();
+		if (minecraft.getConnection() != null) {
+			if (minecraft.isLocalServer()) {
+				this.serverPermissions = true;
+			} else {
+				NetworkHandler.INSTANCE.sendToServer(new C2SAskPermissionsMessage());
+			}
+		}
+	}
+
 	public boolean getServerPermissions() {
 		return this.serverPermissions;
 	}
@@ -184,6 +212,6 @@ public class SelectConfigScreen extends Screen {
 	}
 
 	public boolean invalidData(ModConfig config) {
-		return config.getConfigData() == null || !(config.getSpec() instanceof ForgeConfigSpec);
+		return config.getConfigData() == null || !(config.getSpec() instanceof ForgeConfigSpec spec) || !spec.isLoaded();
 	}
 }

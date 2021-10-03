@@ -59,6 +59,10 @@ public enum NetworkHandler {
         }
     }
 
+    /**
+     * use discriminator to generate identifier for package
+     * @return unique identifier
+     */
     private static ResourceLocation nextIdentifier() {
 
         return new ResourceLocation(PickUpNotifier.MODID, "main/" + DISCRIMINATOR.getAndIncrement());
@@ -96,6 +100,21 @@ public enum NetworkHandler {
     public void sendToAll(Message message) {
 
         PickUpNotifier.PROXY.getGameServer().getPlayerList().broadcastAll(createS2CPacket(message));
+    }
+
+    /**
+     * send message from server to all clients except one
+     * @param message message to send
+     * @param exclude client to exclude
+     */
+    public void sendToAllExcept(Message message, ServerPlayer exclude) {
+
+        final Packet<?> packet = createS2CPacket(message);
+        for (ServerPlayer player : PickUpNotifier.PROXY.getGameServer().getPlayerList().getPlayers()) {
+            if (player != exclude) {
+                player.connection.send(packet);
+            }
+        }
     }
 
     /**

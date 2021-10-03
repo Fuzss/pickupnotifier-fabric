@@ -10,6 +10,7 @@ import com.mrcrayfish.configured.client.gui.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import com.mrcrayfish.configured.client.gui.widget.ConfigEditBox;
 import com.mrcrayfish.configured.client.gui.widget.IconButton;
+import com.mrcrayfish.configured.client.util.ServerConfigUploader;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
@@ -26,6 +27,7 @@ import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 @Environment(EnvType.CLIENT)
 public abstract class ConfigScreen extends Screen {
     public static final ResourceLocation LOGO_TEXTURE = new ResourceLocation(Configured.MODID, "textures/gui/logo.png");
+    public static final TranslatableComponent INFO_TOOLTIP = new TranslatableComponent("configured.gui.info");
 
     final Screen lastScreen;
     final ResourceLocation background;
@@ -102,16 +105,16 @@ public abstract class ConfigScreen extends Screen {
     private static class Main extends ConfigScreen {
 
         /**
-         * only used for saving when closing screen
+         * called when closing screen via done button
          */
-        private final ForgeConfigSpec spec;
+        private final Runnable onSave;
         private Button doneButton;
         private Button cancelButton;
         private Button backButton;
 
-        private Main(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec, Map<Object, IEntryData> valueToData) {
-            super(lastScreen, title, background, spec.getValues(), valueToData);
-            this.spec = spec;
+        private Main(Screen lastScreen, Component title, ResourceLocation background, UnmodifiableConfig config, Map<Object, IEntryData> valueToData, Runnable onSave) {
+            super(lastScreen, title, background, config, valueToData);
+            this.onSave = onSave;
         }
 
         @Override
@@ -119,7 +122,7 @@ public abstract class ConfigScreen extends Screen {
             super.init();
             this.doneButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> {
                 this.valueToData.values().forEach(IEntryData::saveConfigValue);
-                this.spec.save();
+                this.onSave.run();
                 this.minecraft.setScreen(this.lastScreen);
             }));
             this.cancelButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
@@ -245,6 +248,16 @@ public abstract class ConfigScreen extends Screen {
         @Override
         void drawBaseTitle(PoseStack poseStack) {
         }
+
+        @Override
+        public void onClose() {
+            // exit out of search before closing screen
+            if (!this.searchTextField.getValue().isEmpty()) {
+                this.searchTextField.setValue("");
+            } else {
+                this.minecraft.setScreen(this.lastScreen);
+            }
+        }
     }
 
     @Override
@@ -270,7 +283,7 @@ public abstract class ConfigScreen extends Screen {
         this.list = new ConfigList(this.getConfigListEntries(this.searchTextField.getValue()));
         this.addWidget(this.list);
         this.addWidget(this.searchTextField);
-        final List<FormattedCharSequence> tooltip = this.font.split(new TranslatableComponent("configured.gui.info"), 200);
+        final List<FormattedCharSequence> tooltip = this.font.split(INFO_TOOLTIP, 200);
         this.addRenderableWidget(new ImageButton(23, 14, 19, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
             Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
             this.handleComponentClicked(style);
@@ -341,14 +354,7 @@ public abstract class ConfigScreen extends Screen {
     }
 
     @Override
-    public void onClose() {
-        // exit out of search before closing screen
-        if (!this.searchTextField.getValue().isEmpty()) {
-            this.searchTextField.setValue("");
-        } else {
-            this.minecraft.setScreen(this.lastScreen);
-        }
-    }
+    public abstract void onClose();
 
     void setActiveTooltip(@Nullable List<FormattedCharSequence> activeTooltip) {
         this.activeTooltip = activeTooltip;
@@ -429,12 +435,8 @@ public abstract class ConfigScreen extends Screen {
         return null;
     }
 
-    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec) {
-        return create(lastScreen, title, background, spec, makeValueToDataMap(spec));
-    }
-
-    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ForgeConfigSpec spec, Map<Object, IEntryData> valueToData) {
-        return new ConfigScreen.Main(lastScreen, title, background, spec, valueToData);
+    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ModConfig config, Map<Object, IEntryData> valueToData) {
+        return new ConfigScreen.Main(lastScreen, title, background, ((ForgeConfigSpec) config.getSpec()).getValues(), valueToData, () -> ServerConfigUploader.saveAndUpload(config));
     }
 
     public static Map<Object, IEntryData> makeValueToDataMap(ForgeConfigSpec spec) {
@@ -556,7 +558,9 @@ public abstract class ConfigScreen extends Screen {
 
         public CategoryEntry(Component title, ConfigScreen screen) {
             super(title, null);
-            this.button = new Button(10, 5, 260, 20, new TextComponent("").append(title).withStyle(ChatFormatting.BOLD), button -> {
+            // should really be truncated when too long but haven't found a way to convert result back to component for using with button while preserving formatting
+            this.button = new Button(10, 5, 260, 20, title, button -> {
+                // values are usually preserved, so here we force a reset
                 ConfigScreen.this.searchTextField.setValue("");
                 ConfigScreen.this.searchTextField.setFocus(false);
                 ConfigScreen.this.minecraft.setScreen(screen);
@@ -594,6 +598,8 @@ public abstract class ConfigScreen extends Screen {
 
     @Environment(EnvType.CLIENT)
     private abstract class ConfigEntry<T> extends Entry {
+        private static final TranslatableComponent RESET_TOOLTIP = new TranslatableComponent("configured.gui.tooltip.reset");
+
         private final List<AbstractWidget> children = Lists.newArrayList();
         private final EntryData.ConfigEntryData<T> configEntryData;
         private final FormattedCharSequence visualTitle;
@@ -609,13 +615,13 @@ public abstract class ConfigScreen extends Screen {
             this.configEntryData = configEntryData;
             FormattedText truncatedTitle = this.getTruncatedText(ConfigScreen.this.font, this.getTitle(), 260 - 70, Style.EMPTY);
             this.visualTitle = Language.getInstance().getVisualOrder(truncatedTitle);
-            final List<FormattedCharSequence> formattedCharSequences = ConfigScreen.this.font.split(new TranslatableComponent("configured.gui.tooltip.reset"), 200);
+            final List<FormattedCharSequence> tooltip = ConfigScreen.this.font.split(RESET_TOOLTIP, 200);
             this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, button -> {
                 configEntryData.resetCurrentValue();
                 this.onConfigValueChanged(configEntryData.getCurrentValue(), true);
             }, (button, matrixStack, mouseX, mouseY) -> {
                 if (button.active) {
-                    ConfigScreen.this.setActiveTooltip(formattedCharSequences);
+                    ConfigScreen.this.setActiveTooltip(tooltip);
                 }
             });
             this.resetButton.active = configEntryData.mayResetValue();

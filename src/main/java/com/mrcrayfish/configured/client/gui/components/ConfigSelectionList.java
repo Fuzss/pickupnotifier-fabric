@@ -19,7 +19,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
@@ -30,8 +29,8 @@ import java.util.Locale;
 
 @Environment(EnvType.CLIENT)
 public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<ConfigSelectionList.ConfigListEntry> {
-	private static final ResourceLocation ICON_LOCATION = new ResourceLocation(Configured.MODID, "textures/misc/pack.png");
-	private static final ResourceLocation ICON_DISABLED_LOCATION = new ResourceLocation("textures/misc/unknown_server.png");
+	private static final ResourceLocation ICON_LOCATION = new ResourceLocation(Configured.MODID, "textures/misc/config.png");
+	private static final ResourceLocation ICON_DISABLED_LOCATION = new ResourceLocation(Configured.MODID, "textures/misc/disabled_config.png");
 	private static final ResourceLocation ICON_OVERLAY_LOCATION = new ResourceLocation("textures/gui/world_selection.png");
 	private static final Component NO_DATA_TOOLTIP = new TranslatableComponent("configured.gui.select.no_data").withStyle(ChatFormatting.RED);
 	private static final Component NO_PERMISSIONS_TOOLTIP = new TranslatableComponent("configured.gui.select.no_permissions").withStyle(ChatFormatting.GOLD);
@@ -114,7 +113,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 		@Override
 		public Component getNarration() {
 			Component component = new TextComponent(getName(this.config));
-			if (this.screen.invalidData(this.config)) {
+			if (this.invalidData()) {
 				component = CommonComponents.joinForNarration(component, ConfigSelectionList.NO_DATA_TOOLTIP);
 			} else if (this.noPermissions()) {
 				component = CommonComponents.joinForNarration(component, ConfigSelectionList.NO_PERMISSIONS_TOOLTIP);
@@ -142,21 +141,21 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 				RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 				boolean leftHovered = mouseX - entryLeft < 32;
 				int textureY = leftHovered ? 32 : 0;
-				if (this.screen.invalidData(this.config)) {
+				if (this.invalidData()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 96.0F, (float)textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_DATA_TOOLTIP, 175));
+						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_DATA_TOOLTIP, 200));
 					}
 				} else if (this.noPermissions()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 175));
+						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 200));
 					}
 				} else if (this.carefulEditing()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 32.0F, (float)textureY, 32, 32, 256, 256);
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.MULTIPLAYER_SERVER_TOOLTIP, 175));
+						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.MULTIPLAYER_SERVER_TOOLTIP, 200));
 					}
 				} else {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 0.0F, (float)textureY, 32, 32, 256, 256);
@@ -186,7 +185,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 		}
 
 		public void openConfig() {
-			final ConfigScreen configScreen = ConfigScreen.create(this.screen, this.screen.getDisplayName(), this.screen.getBackground(), (ForgeConfigSpec) this.config.getSpec(), this.screen.getValueToDataMap(this.config));
+			final ConfigScreen configScreen = ConfigScreen.create(this.screen, this.screen.getDisplayName(), this.screen.getBackground(), this.config, this.screen.getValueToDataMap(this.config));
 			this.minecraft.setScreen(configScreen);
 		}
 
@@ -197,16 +196,20 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 			return fullName.substring(start, end < start ? fullName.length() : end);
 		}
 
-		private boolean noPermissions() {
-			return !this.screen.getServerPermissions() && this.config.getType() == ModConfig.Type.SERVER;
+		public boolean invalidData() {
+			return this.screen.getValueToDataMap(this.config).isEmpty();
 		}
 
-		private boolean carefulEditing() {
+		private boolean noPermissions() {
+			return this.config.getType() == ModConfig.Type.SERVER && !this.screen.getServerPermissions();
+		}
+
+		public boolean carefulEditing() {
 			return this.config.getType() == ModConfig.Type.SERVER && !this.minecraft.isLocalServer();
 		}
 
 		boolean isDisabled() {
-			return this.screen.invalidData(this.config) || this.noPermissions();
+			return this.invalidData() || this.noPermissions();
 		}
 
 		public ModConfig getConfig() {

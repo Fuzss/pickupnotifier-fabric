@@ -52,15 +52,14 @@ public class ConfigSync {
     }
 
     private List<Pair<String, FriendlyByteBuf>> syncConfigs() {
-        final Map<String, byte[]> configData = tracker.configSets().get(ModConfig.Type.SERVER).stream().collect(Collectors.toMap(ModConfig::getFileName, mc -> {
+        final Map<String, byte[]> configData = this.tracker.configSets().get(ModConfig.Type.SERVER).stream().collect(Collectors.toMap(ModConfig::getFileName, config -> {
             try {
-                return Files.readAllBytes(mc.getFullPath());
+                return Files.readAllBytes(config.getFullPath());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }));
-        return configData.entrySet().stream().map(e-> {
-
+        return configData.entrySet().stream().map(e -> {
             FriendlyByteBuf buf = PacketByteBufs.create();
             buf.writeUtf(e.getKey());
             buf.writeByteArray(e.getValue());
