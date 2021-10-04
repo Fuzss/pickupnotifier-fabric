@@ -1,8 +1,9 @@
 package com.mrcrayfish.configured.network.client.message;
 
+import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.network.message.S2CUpdateConfigMessage;
-import fuzs.pickupnotifier.lib.network.NetworkHandler;
-import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.puzzleslib.network.NetworkHandler;
+import fuzs.puzzleslib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -50,6 +51,7 @@ public class C2SSendConfigMessage implements Message {
             if (server.isDedicatedServer() && player.hasPermissions(server.getOperatorUserPermissionLevel())) {
                 Optional.ofNullable(ConfigTracker.INSTANCE.fileMap().get(packet.fileName)).ifPresent(config -> config.acceptSyncedConfig(packet.fileData));
                 NetworkHandler.INSTANCE.sendToAllExcept(new S2CUpdateConfigMessage(packet.fileName, packet.fileData), (ServerPlayer) player);
+                Configured.LOGGER.info("Server config has been updated by {}", player.getDisplayName());
             }
         }
     }

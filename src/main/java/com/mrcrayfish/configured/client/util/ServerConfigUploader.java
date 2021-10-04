@@ -4,7 +4,7 @@ import com.electronwill.nightconfig.core.Config;
 import com.electronwill.nightconfig.toml.TomlFormat;
 import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.network.client.message.C2SSendConfigMessage;
-import fuzs.pickupnotifier.lib.network.NetworkHandler;
+import fuzs.puzzleslib.network.NetworkHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
@@ -26,7 +26,7 @@ public class ServerConfigUploader {
         CHILD_CONFIG_FIELD = childConfig;
     }
 
-    private static Config getChildConfig(ForgeConfigSpec spec) {
+    public static Config getChildConfig(ForgeConfigSpec spec) {
         if (CHILD_CONFIG_FIELD != null) {
             try {
                 return (Config) CHILD_CONFIG_FIELD.get(spec);
@@ -37,16 +37,12 @@ public class ServerConfigUploader {
         return null;
     }
 
-    public static void saveAndUpload(ModConfig modConfig) {
-        final ForgeConfigSpec spec = (ForgeConfigSpec) modConfig.getSpec();
-        spec.save();
-        if (modConfig.getType() == ModConfig.Type.SERVER && !Minecraft.getInstance().isLocalServer()) {
-            final Config childConfig = getChildConfig(spec);
-            if (childConfig != null) {
-                final ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                TomlFormat.instance().createWriter().write(childConfig, stream);
-                NetworkHandler.INSTANCE.sendToServer(new C2SSendConfigMessage(modConfig.getFileName(), stream.toByteArray()));
-            }
+    public static void saveAndUpload(ModConfig config) {
+        ((ForgeConfigSpec) config.getSpec()).save();
+        if (config.getType() == ModConfig.Type.SERVER && !Minecraft.getInstance().isLocalServer()) {
+            final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            TomlFormat.instance().createWriter().write(config.getConfigData(), stream);
+            NetworkHandler.INSTANCE.sendToServer(new C2SSendConfigMessage(config.getFileName(), stream.toByteArray()));
         }
     }
 }

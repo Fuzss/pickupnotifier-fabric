@@ -5,7 +5,9 @@ import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import com.electronwill.nightconfig.core.file.FileWatcher;
 import com.electronwill.nightconfig.core.io.ParsingException;
 import com.electronwill.nightconfig.core.io.WritingMode;
-import fuzs.pickupnotifier.lib.core.FabricEnvironment;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
+import net.minecraftforge.ForgeConfigs;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +20,7 @@ import java.util.function.Function;
 public class ConfigFileTypeHandler {
     private static final Logger LOGGER = LogManager.getLogger();
     static ConfigFileTypeHandler TOML = new ConfigFileTypeHandler();
-    private static final Path defaultConfigPath = FabricEnvironment.getConfigDir();
+    private static final Path defaultConfigPath = ModLoaderEnvironment.getGameDir().resolve(ForgeConfigs.DEFAULT_CONFIG_NAME);
 
     public Function<ModConfig, CommentedFileConfig> reader(Path configBasePath) {
         return (c) -> {
@@ -135,7 +137,7 @@ public class ConfigFileTypeHandler {
                 }
                 LOGGER.debug(ConfigTracker.CONFIG, "Config file {} changed, sending notifies", this.modConfig.getFileName());
                 this.modConfig.getSpec().afterReload();
-                ModConfigEvents.RELOADING.invoker().onModConfigReloading(this.modConfig);
+                ModConfigEvent.RELOADING.invoker().onModConfigReloading(this.modConfig);
             }
         }
     }

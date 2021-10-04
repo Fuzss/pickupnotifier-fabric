@@ -1,6 +1,6 @@
 package com.mrcrayfish.configured.network.message;
 
-import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.puzzleslib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.config.ConfigTracker;

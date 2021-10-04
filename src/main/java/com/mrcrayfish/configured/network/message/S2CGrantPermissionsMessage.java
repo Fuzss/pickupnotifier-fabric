@@ -1,7 +1,7 @@
 package com.mrcrayfish.configured.network.message;
 
 import com.mrcrayfish.configured.client.gui.screens.SelectConfigScreen;
-import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.puzzleslib.network.message.Message;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;

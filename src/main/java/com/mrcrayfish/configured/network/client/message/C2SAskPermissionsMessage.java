@@ -1,8 +1,8 @@
 package com.mrcrayfish.configured.network.client.message;
 
 import com.mrcrayfish.configured.network.message.S2CGrantPermissionsMessage;
-import fuzs.pickupnotifier.lib.network.NetworkHandler;
-import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.puzzleslib.network.NetworkHandler;
+import fuzs.puzzleslib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;

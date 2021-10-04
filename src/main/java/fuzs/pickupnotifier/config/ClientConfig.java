@@ -1,15 +1,14 @@
 package fuzs.pickupnotifier.config;
 
 import com.google.common.collect.Lists;
-import com.mrcrayfish.configured.Configured;
 import fuzs.pickupnotifier.PickUpNotifier;
 import fuzs.pickupnotifier.client.gui.PositionPreset;
 import fuzs.pickupnotifier.config.core.AbstractConfig;
 import fuzs.pickupnotifier.config.serialization.EntryCollectionBuilder;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Registry;
 import net.minecraft.world.item.Item;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -123,33 +122,6 @@ public class ClientConfig extends AbstractConfig.AbstractClientConfig {
             register(builder.comment("Offset on y-axis from screen border.").defineInRange("Y-Offset", 4, 0, Integer.MAX_VALUE), v -> this.yOffset = v);
             register(builder.comment("Percentage of relative screen height entries are allowed to fill at max.").defineInRange("Maximum Height", 0.5, 0.0, 1.0), v -> this.height = v);
             register(builder.comment("Scale of entries. A lower scale will make room for more rows to show. Works together with \"GUI Scale\" option in \"Video Settings\".").defineInRange("Custom Scale", 4, 1, 24), v -> this.scale = v);
-            this.deleteThisWhenDone(builder);
-        }
-
-        private void deleteThisWhenDone(ForgeConfigSpec.Builder builder) {
-            builder.push("messy");
-            builder.comment("A list of ints.").define("Int-List", Lists.newArrayList(1, 2, 3, 4, 5));
-            builder.comment("A list of longs.").define("Long-List", Lists.newArrayList(1L, 200L, 3L, 4, 5));
-            builder.comment("A list of longs #2.").define("Long-List #2", Lists.newArrayList(1L, 2L, 3L, 400L, 5L));
-            builder.comment("A list of ints.").define("Double-List", Lists.newArrayList(1.0, 2.0, 3.0, 4.0, 5.0));
-            builder.comment("A list of STRINGS.").define("String-List", Lists.newArrayList("one", "two", "four"));
-            builder.comment("A list of bools.").defineList("Boolean-List", Lists.newArrayList(false, true, false), o -> true);
-            builder.comment("A list of enums.").defineList("Enum-List", Lists.newArrayList(ChatFormatting.WHITE, ChatFormatting.BLACK, ChatFormatting.BLUE, ChatFormatting.ITALIC), o -> true);
-            builder.comment("Percentage of relative screen height entries are allowed to fill at max.").define("Maximum Height", "true", "true"::equals);
-            builder.push("category1");
-            builder.push("category2");
-            builder.push("category3");
-            builder.push("category4");
-            builder.push("category5");
-            builder.push("category6");
-            builder.comment("Percentage of relative screen height entries are allowed to fill at max.").define("Maximum Height", "true", "true"::equals);
-            builder.pop();
-            builder.pop();
-            builder.pop();
-            builder.pop();
-            builder.pop();
-            builder.pop();
-            builder.pop();
         }
 
     }

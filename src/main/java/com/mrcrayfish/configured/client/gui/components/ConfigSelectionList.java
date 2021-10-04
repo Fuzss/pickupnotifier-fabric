@@ -3,7 +3,7 @@ package com.mrcrayfish.configured.client.gui.components;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
-import com.mrcrayfish.configured.client.gui.data.IEntryData;
+import com.mrcrayfish.configured.config.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.screens.ConfigScreen;
 import com.mrcrayfish.configured.client.gui.screens.SelectConfigScreen;
 import net.fabricmc.api.EnvType;

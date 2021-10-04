@@ -6,6 +6,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.mrcrayfish.configured.client.gui.screens.ConfigScreen;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
+import com.mrcrayfish.configured.config.data.IEntryData;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TranslatableComponent;
@@ -83,6 +84,12 @@ public class EntryData implements IEntryData {
 
         public void setScreen(ConfigScreen screen) {
             this.screen = screen;
+        }
+
+        @Override
+        public int compareTo(IEntryData other) {
+            // category entries always on top
+            return !(other instanceof CategoryEntryData) ? -1 : super.compareTo(other);
         }
     }
 

@@ -51,6 +51,10 @@ public class ScreenUtil {
         tesselator.end();
     }
 
+    public static Component formatLabel(String input) {
+        return new TextComponent(formatText(input));
+    }
+
     /**
      * Tries to create a readable label from the given input. This input should be
      * the raw config value name. For example "shouldShowParticles" will be converted
@@ -59,9 +63,9 @@ public class ScreenUtil {
      * @param input the config value name
      * @return a readable label string
      */
-    public static Component formatLabel(String input) {
+    public static String formatText(String input) {
         if (input == null || input.isEmpty()) {
-            return new TextComponent("");
+            return "";
         }
         // Try split by camel case
         String[] words = input.split("(?<!(^|[A-Z]))(?=[A-Z])|(?<!^)(?=[A-Z][a-z])");
@@ -72,6 +76,6 @@ public class ScreenUtil {
         for (int i = 0; i < words.length; i++) words[i] = StringUtils.capitalize(words[i]);
         // Finally join words. Some mods have inputs like "Foo_Bar" and this causes a double space.
         // To fix this any whitespace is replaced with a single space
-        return new TextComponent(Strings.join(words, " ").replaceAll("\\s++", " "));
+        return Strings.join(words, " ").replaceAll("\\s++", " ");
     }
 }

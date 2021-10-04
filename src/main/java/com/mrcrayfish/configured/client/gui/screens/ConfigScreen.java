@@ -6,7 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.gui.components.CustomBackgroundContainerObjectSelectionList;
 import com.mrcrayfish.configured.client.gui.data.EntryData;
-import com.mrcrayfish.configured.client.gui.data.IEntryData;
+import com.mrcrayfish.configured.config.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import com.mrcrayfish.configured.client.gui.widget.ConfigEditBox;
 import com.mrcrayfish.configured.client.gui.widget.IconButton;
@@ -102,6 +102,10 @@ public abstract class ConfigScreen extends Screen {
         }
     }
 
+    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ModConfig config, Map<Object, IEntryData> valueToData) {
+        return new ConfigScreen.Main(lastScreen, title, background, ((ForgeConfigSpec) config.getSpec()).getValues(), valueToData, () -> ServerConfigUploader.saveAndUpload(config));
+    }
+
     private static class Main extends ConfigScreen {
 
         /**
@@ -120,12 +124,12 @@ public abstract class ConfigScreen extends Screen {
         @Override
         protected void init() {
             super.init();
-            this.doneButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> {
+            this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> {
                 this.valueToData.values().forEach(IEntryData::saveConfigValue);
                 this.onSave.run();
                 this.minecraft.setScreen(this.lastScreen);
             }));
-            this.cancelButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
+            this.cancelButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> this.onClose()));
             // button is made visible when search field is active
             this.backButton = this.addRenderableWidget(new Button(this.width / 2 - 100, this.height - 28, 200, 20, CommonComponents.GUI_BACK, button -> this.searchTextField.setValue("")));
             this.onSearchFieldChanged(this.searchTextField.getValue().trim().isEmpty());
@@ -433,27 +437,6 @@ public abstract class ConfigScreen extends Screen {
             return currentValue.get(0);
         }
         return null;
-    }
-
-    public static ConfigScreen create(Screen lastScreen, Component title, ResourceLocation background, ModConfig config, Map<Object, IEntryData> valueToData) {
-        return new ConfigScreen.Main(lastScreen, title, background, ((ForgeConfigSpec) config.getSpec()).getValues(), valueToData, () -> ServerConfigUploader.saveAndUpload(config));
-    }
-
-    public static Map<Object, IEntryData> makeValueToDataMap(ForgeConfigSpec spec) {
-        Map<Object, IEntryData> allData = Maps.newHashMap();
-        makeValueToDataMap(spec, spec.getValues(), allData);
-        return ImmutableMap.copyOf(allData);
-    }
-
-    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryData> allData) {
-        values.valueMap().forEach((path, value) -> {
-            if (value instanceof UnmodifiableConfig configValue) {
-                allData.put(configValue, new EntryData.CategoryEntryData(ScreenUtil.formatLabel(path), configValue));
-                makeValueToDataMap(spec, configValue, allData);
-            } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
-                allData.put(configValue, new EntryData.ConfigEntryData<>(configValue, spec.getRaw(configValue.getPath())));
-            }
-        });
     }
 
     @Environment(EnvType.CLIENT)

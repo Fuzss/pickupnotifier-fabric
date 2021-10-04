@@ -3,6 +3,7 @@ package net.minecraftforge.common;
 import static com.electronwill.nightconfig.core.ConfigSpec.CorrectionAction.ADD;
 import static com.electronwill.nightconfig.core.ConfigSpec.CorrectionAction.REMOVE;
 import static com.electronwill.nightconfig.core.ConfigSpec.CorrectionAction.REPLACE;
+import static net.minecraftforge.ForgeConfigs.CORE;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,8 +21,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import fuzs.pickupnotifier.lib.core.FabricEnvironment;
-import net.minecraftforge.fml.config.ConfigTracker;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
 import net.minecraftforge.fml.config.IConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
@@ -67,12 +67,12 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
         this.childConfig = config;
         if (config != null && !isCorrect(config)) {
             String configName = config instanceof FileConfig ? ((FileConfig) config).getNioPath().toString() : config.toString();
-            LogManager.getLogger().warn(ConfigTracker.CONFIG, "Configuration file {} is not correct. Correcting", configName);
+            LogManager.getLogger().warn(CORE, "Configuration file {} is not correct. Correcting", configName);
             correct(config,
                     (action, path, incorrectValue, correctedValue) ->
-                            LogManager.getLogger().warn(ConfigTracker.CONFIG, "Incorrect key {} was corrected from {} to its default, {}. {}", DOT_JOINER.join( path ), incorrectValue, correctedValue, incorrectValue == correctedValue ? "This seems to be an error." : ""),
+                            LogManager.getLogger().warn(CORE, "Incorrect key {} was corrected from {} to its default, {}. {}", DOT_JOINER.join( path ), incorrectValue, correctedValue, incorrectValue == correctedValue ? "This seems to be an error." : ""),
                     (action, path, incorrectValue, correctedValue) ->
-                            LogManager.getLogger().debug(ConfigTracker.CONFIG, "The comment on key {} does not match the spec. This may create a backup.", DOT_JOINER.join( path )));
+                            LogManager.getLogger().debug(CORE, "The comment on key {} does not match the spec. This may create a backup.", DOT_JOINER.join( path )));
 
             if (config instanceof FileConfig) {
                 ((FileConfig) config).save();
@@ -354,13 +354,13 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
                 @Override
                 public Object correct(Object value) {
                     if (value == null || !(value instanceof List) || ((List<?>)value).isEmpty()) {
-                        LogManager.getLogger().debug(ConfigTracker.CONFIG, "List on key {} is deemed to need correction. It is null, not a list, or an empty list. Modders, consider defineListAllowEmpty?", path.get(path.size() - 1));
+                        LogManager.getLogger().debug(CORE, "List on key {} is deemed to need correction. It is null, not a list, or an empty list. Modders, consider defineListAllowEmpty?", path.get(path.size() - 1));
                         return getDefault();
                     }
                     List<?> list = Lists.newArrayList((List<?>) value);
                     list.removeIf(elementValidator.negate());
                     if (list.isEmpty()) {
-                        LogManager.getLogger().debug(ConfigTracker.CONFIG, "List on key {} is deemed to need correction. It failed validation.", path.get(path.size() - 1));
+                        LogManager.getLogger().debug(CORE, "List on key {} is deemed to need correction. It failed validation.", path.get(path.size() - 1));
                         return getDefault();
                     }
                     return list;
@@ -374,13 +374,13 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
                 @Override
                 public Object correct(Object value) {
                     if (value == null || !(value instanceof List)) {
-                        LogManager.getLogger().debug(ConfigTracker.CONFIG, "List on key {} is deemed to need correction, as it is null or not a list.", path.get(path.size() - 1));
+                        LogManager.getLogger().debug(CORE, "List on key {} is deemed to need correction, as it is null or not a list.", path.get(path.size() - 1));
                         return getDefault();
                     }
                     List<?> list = Lists.newArrayList((List<?>) value);
                     list.removeIf(elementValidator.negate());
                     if (list.isEmpty()) {
-                        LogManager.getLogger().debug(ConfigTracker.CONFIG, "List on key {} is deemed to need correction. It failed validation.", path.get(path.size() - 1));
+                        LogManager.getLogger().debug(CORE, "List on key {} is deemed to need correction. It failed validation.", path.get(path.size() - 1));
                         return getDefault();
                     }
                     return list;
@@ -530,9 +530,9 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
             if(comment == null || comment.isEmpty())
             {
                 comment = "No comment";
-                if(!FabricEnvironment.isDevelopmentEnvironment())
+                if(!ModLoaderEnvironment.isDevelopmentEnvironment())
                 {
-                    LogManager.getLogger().error(ConfigTracker.CONFIG, "Null comment for config option {}, this is invalid and may be disallowed in the future.",
+                    LogManager.getLogger().error(CORE, "Null comment for config option {}, this is invalid and may be disallowed in the future.",
                             DOT_JOINER.join(this.currentPath));
                 }
             }
@@ -544,9 +544,9 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
             if(comment == null || comment.length < 1 || (comment.length == 1 && comment[0].isEmpty()))
             {
                 comment = new String[] {"No comment"};
-                if(!FabricEnvironment.isDevelopmentEnvironment())
+                if(!ModLoaderEnvironment.isDevelopmentEnvironment())
                 {
-                    LogManager.getLogger().error(ConfigTracker.CONFIG, "Null comment for config option {}, this is invalid and may be disallowed in the future.",
+                    LogManager.getLogger().error(CORE, "Null comment for config option {}, this is invalid and may be disallowed in the future.",
                             DOT_JOINER.join(this.currentPath));
                 }
             }
@@ -697,7 +697,7 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
                 boolean result = ((Number)min).doubleValue() <= n.doubleValue() && n.doubleValue() <= ((Number)max).doubleValue();
                 if(!result)
                 {
-                    LogManager.getLogger().debug(ConfigTracker.CONFIG, "Range value {} is not within its bounds {}-{}", n.doubleValue(), ((Number)min).doubleValue(), ((Number)max).doubleValue());
+                    LogManager.getLogger().debug(CORE, "Range value {} is not within its bounds {}-{}", n.doubleValue(), ((Number)min).doubleValue(), ((Number)max).doubleValue());
                 }
                 return result;
             }
@@ -707,7 +707,7 @@ public class ForgeConfigSpec extends UnmodifiableConfigWrapper<UnmodifiableConfi
             boolean result = c.compareTo(min) >= 0 && c.compareTo(max) <= 0;
             if(!result)
             {
-                LogManager.getLogger().debug(ConfigTracker.CONFIG, "Range value {} is not within its bounds {}-{}", c, min, max);
+                LogManager.getLogger().debug(CORE, "Range value {} is not within its bounds {}-{}", c, min, max);
             }
             return result;
         }

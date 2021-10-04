@@ -1,9 +1,12 @@
 package com.mrcrayfish.configured.client;
 
 import com.mrcrayfish.configured.client.gui.screens.SelectConfigScreen;
+import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.TextComponent;
@@ -23,7 +26,7 @@ public class ClientHandler {
     }
 
     public static Function<Screen, Screen> createConfigScreen(final String modId, ResourceLocation optionsBackground) {
-        return createConfigScreen(modId, FabricLoader.getInstance().getModContainer(modId).get().getMetadata().getName(), optionsBackground);
+        return createConfigScreen(modId, ModLoaderEnvironment.getModContainer(modId).map(ModContainer::getMetadata).map(ModMetadata::getName).orElse(ScreenUtil.formatText(modId)), optionsBackground);
     }
 
     public static Function<Screen, Screen> createConfigScreen(final String modId, String displayName) {

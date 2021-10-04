@@ -3,8 +3,8 @@ package net.minecraftforge.fml.config;
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import com.electronwill.nightconfig.toml.TomlFormat;
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 
 import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
@@ -78,15 +78,7 @@ public class ModConfig
 
     public void acceptSyncedConfig(byte[] bytes) {
         this.setConfigData(TomlFormat.instance().createParser().parse(new ByteArrayInputStream(bytes)));
-        ModConfigEvents.RELOADING.invoker().onModConfigReloading(this);
-    }
-
-    public static void registerConfig(String modId, ModConfig.Type type, IConfigSpec<?> spec) {
-        new ModConfig(type, spec, FabricLoader.getInstance().getModContainer(modId).get());
-    }
-
-    public static void registerConfig(String modId, ModConfig.Type type, IConfigSpec<?> spec, String fileName) {
-        new ModConfig(type, spec, FabricLoader.getInstance().getModContainer(modId).get(), fileName);
+        ModConfigEvent.RELOADING.invoker().onModConfigReloading(this);
     }
 
     public enum Type {

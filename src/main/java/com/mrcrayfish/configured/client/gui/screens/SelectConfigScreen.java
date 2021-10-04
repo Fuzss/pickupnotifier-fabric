@@ -5,11 +5,11 @@ import com.google.common.collect.Maps;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.gui.components.ConfigSelectionList;
-import com.mrcrayfish.configured.client.gui.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import com.mrcrayfish.configured.client.util.ServerConfigUploader;
+import com.mrcrayfish.configured.config.data.IEntryData;
 import com.mrcrayfish.configured.network.client.message.C2SAskPermissionsMessage;
-import fuzs.pickupnotifier.lib.network.NetworkHandler;
+import fuzs.puzzleslib.network.NetworkHandler;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -50,7 +50,7 @@ public class SelectConfigScreen extends Screen {
 		this.displayName = displayName;
 		this.background = optionsBackground;
 		this.configs = configs.stream().collect(Collectors.collectingAndThen(Collectors.toMap(Function.identity(), config -> {
-			return this.invalidData(config) ? Maps.<Object, IEntryData>newHashMap() : ConfigScreen.makeValueToDataMap((ForgeConfigSpec) config.getSpec());
+			return this.invalidData(config) ? Maps.<Object, IEntryData>newHashMap() : IEntryData.makeValueToDataMap((ForgeConfigSpec) config.getSpec());
 		}), ImmutableMap::copyOf));
 		this.initServerPermissions();
 	}

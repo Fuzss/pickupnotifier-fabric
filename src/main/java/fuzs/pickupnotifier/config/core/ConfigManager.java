@@ -3,7 +3,7 @@ package fuzs.pickupnotifier.config.core;
 import com.google.common.collect.Sets;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.config.ModConfigEvents;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -20,7 +20,7 @@ public class ConfigManager {
 
     public static void init(String modId) {
 
-        ModConfigEvents.RELOADING.register(config -> {
+        ModConfigEvent.RELOADING.register(config -> {
 
             if (config.getModId().equals(modId)) {
 

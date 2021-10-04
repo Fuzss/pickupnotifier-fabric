@@ -4,8 +4,7 @@
   "compatibilityLevel": "JAVA_16",
   "package": "fuzs.pickupnotifier.mixin",
   "mixins": [
-    "ItemEntityMixin",
-    "LevelResourceAccessor"
+    "ItemEntityMixin"
   ],
   "client": [
     "client.ClientPacketListenerMixin",

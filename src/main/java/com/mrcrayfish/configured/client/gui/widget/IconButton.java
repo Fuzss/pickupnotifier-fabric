@@ -15,21 +15,19 @@ import net.minecraft.util.Mth;
  * Author: MrCrayfish
  */
 public class IconButton extends Button {
-    public static final ResourceLocation ICON_LOCATION = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
+    public static final ResourceLocation ICONS_LOCATION = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
 
-    private final int u;
-    private final int v;
+    private final int textureX;
+    private final int textureY;
 
-    public IconButton(int x, int y, int width, int height, int u, int v, Button.OnPress onPress) {
-        super(x, y, width, height, TextComponent.EMPTY, onPress);
-        this.u = u;
-        this.v = v;
+    public IconButton(int x, int y, int width, int height, int textureX, int textureY, Button.OnPress onPress) {
+        this(x, y, width, height, textureX, textureY, onPress, Button.NO_TOOLTIP);
     }
 
-    public IconButton(int x, int y, int width, int height, int u, int v, OnPress onPress, OnTooltip onTooltip) {
+    public IconButton(int x, int y, int width, int height, int textureX, int textureY, Button.OnPress onPress, Button.OnTooltip onTooltip) {
         super(x, y, width, height, TextComponent.EMPTY, onPress, onTooltip);
-        this.u = u;
-        this.v = v;
+        this.textureX = textureX;
+        this.textureY = textureY;
     }
 
     @Override
@@ -48,10 +46,10 @@ public class IconButton extends Button {
         this.renderBg(poseStack, minecraft, mouseX, mouseY);
         int color = -1;
         drawCenteredString(poseStack, font, this.getMessage(), this.x + this.width / 2, this.y + (this.height - 8) / 2, color | Mth.ceil(this.alpha * 255.0F) << 24);
-        RenderSystem.setShaderTexture(0, ICON_LOCATION);
+        RenderSystem.setShaderTexture(0, ICONS_LOCATION);
         float brightness = this.active ? 1.0F : 0.5F;
         RenderSystem.setShaderColor(brightness, brightness, brightness, this.alpha);
-        blit(poseStack, this.x + 5, this.y + 4, this.getBlitOffset(), this.u, this.v, 11, 11, 32, 32);
+        blit(poseStack, this.x + 5, this.y + 4, this.getBlitOffset(), this.textureX, this.textureY, 11, 11, 32, 32);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, this.alpha);
         if (this.isHovered()) {
             this.renderToolTip(poseStack, mouseX, mouseY);

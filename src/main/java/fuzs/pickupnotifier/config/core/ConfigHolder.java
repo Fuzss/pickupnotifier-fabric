@@ -1,7 +1,7 @@
 package fuzs.pickupnotifier.config.core;
 
 import net.minecraftforge.common.ForgeConfigSpec;
-import fuzs.pickupnotifier.lib.core.FabricEnvironment;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
 
 import java.util.function.Supplier;
 
@@ -12,7 +12,7 @@ public class ConfigHolder<C extends AbstractConfig, S extends AbstractConfig> {
 
     public ConfigHolder(Supplier<C> client, Supplier<S> server) {
 
-        this.client = FabricEnvironment.isClient() ? client.get() : null;
+        this.client = ModLoaderEnvironment.isClient() ? client.get() : null;
         this.server = server.get();
     }
 

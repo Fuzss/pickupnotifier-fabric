@@ -19,17 +19,21 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "${mainEntryPoint}"
+      "${mainEntryPoint}",
+      "net.minecraftforge.ForgeConfigs",
+      "com.mrcrayfish.configured.Configured"
     ],
     "client": [
-      "${clientEntryPoint}"
+      "${clientEntryPoint}",
+      "net.minecraftforge.client.ForgeConfigsClient"
     ],
     "modmenu": [
       "fuzs.pickupnotifier.compat.ModMenuMenu"
     ]
   },
   "mixins": [
-    "${modId}.mixins.json"
+    "${modId}.mixins.json",
+    "forgeconfigs.mixins.json"
   ],
 
   "depends": {

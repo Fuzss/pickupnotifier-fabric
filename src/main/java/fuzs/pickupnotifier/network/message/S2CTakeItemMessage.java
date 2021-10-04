@@ -1,7 +1,7 @@
 package fuzs.pickupnotifier.network.message;
 
 import fuzs.pickupnotifier.client.handler.AddEntriesHandler;
-import fuzs.pickupnotifier.lib.network.message.Message;
+import fuzs.puzzleslib.network.message.Message;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 

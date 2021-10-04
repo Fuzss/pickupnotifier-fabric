@@ -2,6 +2,8 @@ package net.minecraftforge.fml.config;
 
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -38,6 +40,14 @@ public class ConfigTracker {
         this.configSets.get(config.getType()).add(config);
         this.configsByMod.computeIfAbsent(config.getModId(), (k)->new EnumMap<>(ModConfig.Type.class)).put(config.getType(), config);
         LOGGER.debug(CONFIG, "Config file {} for {} tracking", config.getFileName(), config.getModId());
+        loadConfig(config, ModLoaderEnvironment.getConfigDir());
+    }
+
+    private void loadConfig(ModConfig config, Path configBasePath) {
+        // unlike on forge there isn't really more than one loading stage for mods on fabric, therefore we load configs immediately
+        if (config.getType() != ModConfig.Type.SERVER) {
+            openConfig(config, configBasePath);
+        }
     }
 
     public void loadConfigs(ModConfig.Type type, Path configBasePath) {
@@ -54,7 +64,7 @@ public class ConfigTracker {
         LOGGER.trace(CONFIG, "Loading config file type {} at {} for {}", config.getType(), config.getFileName(), config.getModId());
         final CommentedFileConfig configData = config.getHandler().reader(configBasePath).apply(config);
         config.setConfigData(configData);
-        ModConfigEvents.LOADING.invoker().onModConfigLoading(config);
+        ModConfigEvent.LOADING.invoker().onModConfigLoading(config);
         config.save();
     }
 
@@ -72,7 +82,7 @@ public class ConfigTracker {
             final CommentedConfig commentedConfig = CommentedConfig.inMemory();
             modConfig.getSpec().correct(commentedConfig);
             modConfig.setConfigData(commentedConfig);
-            ModConfigEvents.LOADING.invoker().onModConfigLoading(modConfig);
+            ModConfigEvent.LOADING.invoker().onModConfigLoading(modConfig);
         });
     }
 
