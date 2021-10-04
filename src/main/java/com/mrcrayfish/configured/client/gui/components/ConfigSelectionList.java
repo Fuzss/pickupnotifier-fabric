@@ -201,15 +201,11 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 		}
 
 		private boolean noPermissions() {
-			return this.serverConfig() && !this.screen.getServerPermissions();
-		}
-
-		public boolean serverConfig() {
-			return this.config.getType() == ModConfig.Type.SERVER;
+			return this.config.getType() == ModConfig.Type.SERVER && !this.screen.getServerPermissions();
 		}
 
 		public boolean onMultiplayerServer() {
-			return this.serverConfig() && !this.minecraft.isLocalServer();
+			return this.config.getType() == ModConfig.Type.SERVER && !this.minecraft.isLocalServer();
 		}
 
 		boolean isDisabled() {

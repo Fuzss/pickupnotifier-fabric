@@ -12,8 +12,11 @@ import fuzs.puzzleslib.network.NetworkHandler;
 import net.fabricmc.api.ModInitializer;
 import net.minecraftforge.ForgeConfigs;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.loading.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.io.File;
 
 public class Configured implements ModInitializer {
 
@@ -37,7 +40,8 @@ public class Configured implements ModInitializer {
 
     private void initTestConfigs() {
         if (ModLoaderEnvironment.isDevelopmentEnvironment()) {
-            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.CLIENT, TestConfig.CLIENT_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.CLIENT.extension()));
+            FileUtils.getOrCreateDirectory(ModLoaderEnvironment.getConfigDir().resolve(MODID), String.format("%s config directory", MODID));
+            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.CLIENT, TestConfig.CLIENT_SPEC, String.format("%s%s%s-%s.toml", MODID, File.separator, MODID, ModConfig.Type.CLIENT.extension()));
             ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.COMMON, TestConfig.COMMON_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.COMMON.extension()));
             ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.SERVER, TestConfig.SERVER_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.SERVER.extension()));
         }

@@ -192,6 +192,11 @@ public abstract class ConfigScreen extends Screen {
                     if (otherScreen) {
                         Sub.this.minecraft.setScreen(screen);
                     }
+                }, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
+                    if (otherScreen && button.active) {
+                        // move down as this is right at screen top
+                        this.renderTooltip(poseStack, CommonComponents.GUI_BACK, mouseX, mouseY + 24);
+                    }
                 }) {
 
                     @Override
@@ -200,7 +205,6 @@ public abstract class ConfigScreen extends Screen {
                         int color = otherScreen && this.isHovered() ? 16777045 : 16777215;
                         drawCenteredString(poseStack, Sub.this.font, this.getMessage(), this.x + this.width / 2, this.y + (this.height - 8) / 2, color);
                         if (this.isHovered()) {
-                            // move down as this is right at screen top
                             this.renderToolTip(poseStack, mouseX, mouseY);
                         }
                     }
@@ -268,7 +272,9 @@ public abstract class ConfigScreen extends Screen {
     protected void init() {
         super.init();
         boolean focus = this.searchTextField != null && this.searchTextField.isFocused();
-        this.searchTextField = new EditBox(this.font, this.width / 2 - 109, 22, 218, 20, this.searchTextField, TextComponent.EMPTY) {
+        this.searchTextField = new EditBox(this.font, this.width / 2 - 108, 22, 216, 20, this.searchTextField, TextComponent.EMPTY) {
+            private static final MutableComponent SEARCH_COMPONENT = new TranslatableComponent("configured.gui.search").withStyle(ChatFormatting.GRAY);
+
 
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -277,6 +283,14 @@ public abstract class ConfigScreen extends Screen {
                     this.setValue("");
                 }
                 return super.mouseClicked(mouseX, mouseY, button);
+            }
+
+            @Override
+            public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTime) {
+                super.renderButton(poseStack, mouseX, mouseY, partialTime);
+                if (this.isVisible() && !this.isFocused() && this.getValue().isEmpty()) {
+                    ConfigScreen.this.font.draw(poseStack, SEARCH_COMPONENT, this.x + 4, this.y + 6, 16777215);
+                }
             }
         };
         this.searchTextField.setResponder(query -> {
