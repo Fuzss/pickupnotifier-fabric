@@ -4,10 +4,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import joptsimple.internal.Strings;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import org.apache.commons.lang3.StringUtils;
@@ -77,5 +80,23 @@ public class ScreenUtil {
         // Finally join words. Some mods have inputs like "Foo_Bar" and this causes a double space.
         // To fix this any whitespace is replaced with a single space
         return Strings.join(words, " ").replaceAll("\\s++", " ");
+    }
+
+    public static String getTruncatedText(Font font, String component, int maxWidth) {
+        // trim component when too long
+        if (font.width(component) > maxWidth) {
+            return font.plainSubstrByWidth(component, maxWidth - font.width(". . .")) + ". . .";
+        } else {
+            return component;
+        }
+    }
+
+    public static FormattedText getTruncatedText(Font font, Component component, int maxWidth, Style style) {
+        // trim component when too long
+        if (font.width(component) > maxWidth) {
+            return FormattedText.composite(font.getSplitter().headByWidth(component, maxWidth - font.width(". . ."), style), FormattedText.of(". . ."));
+        } else {
+            return component;
+        }
     }
 }

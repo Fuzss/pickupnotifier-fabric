@@ -3,9 +3,9 @@ package com.mrcrayfish.configured.client.gui.components;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
-import com.mrcrayfish.configured.config.data.IEntryData;
 import com.mrcrayfish.configured.client.gui.screens.ConfigScreen;
 import com.mrcrayfish.configured.client.gui.screens.SelectConfigScreen;
+import com.mrcrayfish.configured.config.data.IEntryData;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
@@ -90,19 +90,19 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 
 	@Environment(EnvType.CLIENT)
 	public class ConfigListEntry extends Entry<ConfigListEntry> {
-		private final Minecraft minecraft;
 		private final SelectConfigScreen screen;
+		private final Minecraft minecraft;
+		private final ModConfig config;
 		private final boolean mayResetValue;
 		private final Component nameComponent;
 		private final Component fileNameComponent;
 		private final Component typeComponent;
-		private final ModConfig config;
 		private long lastClickTime;
 
 		public ConfigListEntry(SelectConfigScreen selectConfigScreen, Minecraft minecraft, ModConfig config) {
 			this.screen = selectConfigScreen;
-			this.config = config;
 			this.minecraft = minecraft;
+			this.config = config;
 			this.mayResetValue = selectConfigScreen.getValueToDataMap(config).values().stream().anyMatch(IEntryData::mayResetValue);
 			this.nameComponent = this.mayResetValue ? new TextComponent(getName(config)).withStyle(ChatFormatting.ITALIC) : new TextComponent(getName(config));
 			this.fileNameComponent = new TextComponent(config.getFileName());
@@ -144,18 +144,18 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 				if (this.invalidData()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 96.0F, (float)textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_DATA_TOOLTIP, 200));
+						this.screen.setActiveTooltip(this.minecraft.font.split(ConfigSelectionList.NO_DATA_TOOLTIP, 200));
 					}
 				} else if (this.noPermissions()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 200));
+						this.screen.setActiveTooltip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 200));
 					}
 				} else if (this.carefulEditing()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 32.0F, (float)textureY, 32, 32, 256, 256);
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
-						this.screen.setToolTip(this.minecraft.font.split(ConfigSelectionList.MULTIPLAYER_SERVER_TOOLTIP, 200));
+						this.screen.setActiveTooltip(this.minecraft.font.split(ConfigSelectionList.MULTIPLAYER_SERVER_TOOLTIP, 200));
 					}
 				} else {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 0.0F, (float)textureY, 32, 32, 256, 256);

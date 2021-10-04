@@ -2,7 +2,6 @@ package com.mrcrayfish.configured.client.gui.data;
 
 
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.mrcrayfish.configured.client.gui.screens.ConfigScreen;
 import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
@@ -11,17 +10,33 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraftforge.common.ForgeConfigSpec;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 public class EntryData implements IEntryData {
 
+    private final String path;
+    private final String comment;
     private final Component title;
     private String searchQuery = "";
 
-    public EntryData(Component title) {
+    EntryData(String path, String comment, Component title) {
+        this.path = path;
+        this.comment = comment;
         this.title = title;
+    }
+
+    @Override
+    public String getPath() {
+        return this.path;
+    }
+
+    @Nullable
+    @Override
+    public String getComment() {
+        return this.comment;
     }
 
     @Override
@@ -69,8 +84,8 @@ public class EntryData implements IEntryData {
         private final UnmodifiableConfig config;
         private ConfigScreen screen;
 
-        public CategoryEntryData(Component title, UnmodifiableConfig config) {
-            super(title);
+        public CategoryEntryData(String path, UnmodifiableConfig config, String comment) {
+            super(path, comment, ScreenUtil.formatLabel(path));
             this.config = config;
         }
 
@@ -99,8 +114,8 @@ public class EntryData implements IEntryData {
         private final ForgeConfigSpec.ValueSpec valueSpec;
         private T currentValue;
 
-        public ConfigEntryData(ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
-            super(createLabel(configValue, valueSpec));
+        public ConfigEntryData(String path, ForgeConfigSpec.ConfigValue<T> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
+            super(path, valueSpec.getComment(), createLabel(path, configValue, valueSpec));
             this.configValue = configValue;
             this.valueSpec = valueSpec;
             this.currentValue = configValue.get();
@@ -118,6 +133,7 @@ public class EntryData implements IEntryData {
 
         private static <T> boolean listSafeEquals(T o1, T o2) {
             // attempts to solve an issue where types of lists won't match when one is read from file
+            // (due to enum being converted to string, long to int)
             if (o1 instanceof List<?> list1 && o2 instanceof List<?> list2) {
                 final Stream<String> stream1 = list1.stream().map(o -> o instanceof Enum<?> e ? e.name() : o.toString());
                 final Stream<String> stream2 = list2.stream().map(o -> o instanceof Enum<?> e ? e.name() : o.toString());
@@ -158,7 +174,7 @@ public class EntryData implements IEntryData {
             return this.valueSpec;
         }
 
-        public List<String> getPath() {
+        public List<String> getFullPath() {
             return this.configValue.getPath();
         }
 
@@ -171,11 +187,11 @@ public class EntryData implements IEntryData {
          * @param valueSpec   the associated value spec
          * @return a readable label string
          */
-        private static Component createLabel(ForgeConfigSpec.ConfigValue<?> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
+        private static Component createLabel(String path, ForgeConfigSpec.ConfigValue<?> configValue, ForgeConfigSpec.ValueSpec valueSpec) {
             if (valueSpec.getTranslationKey() != null && I18n.exists(valueSpec.getTranslationKey())) {
                 return new TranslatableComponent(valueSpec.getTranslationKey());
             }
-            return ScreenUtil.formatLabel(Iterables.getLast(configValue.getPath(), ""));
+            return ScreenUtil.formatLabel(path);
         }
     }
 }

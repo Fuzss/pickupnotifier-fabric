@@ -64,7 +64,7 @@ public abstract class ConfigScreen extends Screen {
     @Nullable
     private ConfigEditBox activeTextField;
     @Nullable
-    private List<FormattedCharSequence> activeTooltip;
+    private List<? extends FormattedCharSequence> activeTooltip;
     private int tooltipTicks;
 
     private ConfigScreen(Screen lastScreen, Component title, ResourceLocation background, UnmodifiableConfig config, Map<Object, IEntryData> valueToData) {
@@ -288,7 +288,7 @@ public abstract class ConfigScreen extends Screen {
         this.addWidget(this.list);
         this.addWidget(this.searchTextField);
         final List<FormattedCharSequence> tooltip = this.font.split(INFO_TOOLTIP, 200);
-        this.addRenderableWidget(new ImageButton(23, 14, 19, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
+        this.addRenderableWidget(new ImageButton(14, 14, 19, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
             Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
             this.handleComponentClicked(style);
         }, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
@@ -332,7 +332,7 @@ public abstract class ConfigScreen extends Screen {
 
     @Override
     public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-        List<FormattedCharSequence> lastTooltip = this.activeTooltip;
+        List<? extends FormattedCharSequence> lastTooltip = this.activeTooltip;
         this.activeTooltip = null;
         ScreenUtil.renderCustomBackground(this, this.background, 0);
         this.list.render(poseStack, mouseX, mouseY, partialTicks);
@@ -360,14 +360,14 @@ public abstract class ConfigScreen extends Screen {
     @Override
     public abstract void onClose();
 
-    void setActiveTooltip(@Nullable List<FormattedCharSequence> activeTooltip) {
+    void setActiveTooltip(@Nullable List<? extends FormattedCharSequence> activeTooltip) {
         this.activeTooltip = activeTooltip;
     }
 
     @SuppressWarnings("unchecked")
     Entry makeEntry(IEntryData entryData) {
-        if (entryData instanceof EntryData.CategoryEntryData categoryEntryData) {
-            return new CategoryEntry(categoryEntryData.getDisplayTitle(), categoryEntryData.getScreen());
+        if (entryData instanceof EntryData.CategoryEntryData categoryData) {
+            return new CategoryEntry(categoryData);
         } else if (entryData instanceof EntryData.ConfigEntryData<?> configEntryData) {
             final Object currentValue = configEntryData.getCurrentValue();
             if (currentValue instanceof Boolean) {
@@ -387,7 +387,7 @@ public abstract class ConfigScreen extends Screen {
                 try {
                     return this.makeListEntry(entryData, value);
                 } catch (RuntimeException e) {
-                    Configured.LOGGER.warn("Unable to add list entry containing class type {}", value.getClass().getSimpleName(), e);
+                    Configured.LOGGER.warn("Unable to add list entry containing class type {}", value != null ? value.getClass().getSimpleName() : "null", e);
                 }
                 return null;
             }
@@ -478,25 +478,28 @@ public abstract class ConfigScreen extends Screen {
     public abstract class Entry extends ContainerObjectSelectionList.Entry<ConfigScreen.Entry> {
         private final Component title;
         @Nullable
-        private final List<FormattedCharSequence> tooltip;
+        private final List<? extends FormattedCharSequence> tooltip;
 
-        public Entry(Component title, List<FormattedCharSequence> tooltip) {
-            this.title = title;
-            this.tooltip = tooltip;
+        protected Entry(IEntryData data) {
+            this.title = data.getDisplayTitle();
+            final List<FormattedText> lines = Lists.newArrayList();
+            this.addLines(ConfigScreen.this.font, data, lines);
+            this.tooltip = lines.isEmpty() ? null : Language.getInstance().getVisualOrder(lines);
         }
 
         public final Component getTitle() {
             return this.title;
         }
 
+        abstract void addLines(Font font, IEntryData data, List<FormattedText> lines);
+
         @Nullable
-        public final List<FormattedCharSequence> getTooltip() {
+        public final List<? extends FormattedCharSequence> getTooltip() {
             return this.tooltip;
         }
 
         @Override
         public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
-
             if (ConfigScreen.this.list != null && this.isMouseOver(mouseX, mouseY) && mouseX < ConfigScreen.this.list.getRowLeft() + ConfigScreen.this.list.getRowWidth() - 67) {
                 ConfigScreen.this.setActiveTooltip(this.tooltip);
             }
@@ -516,38 +519,28 @@ public abstract class ConfigScreen extends Screen {
                 }
             });
         }
-
-        String getTruncatedText(Font font, String component, int maxWidth) {
-            // trim component when too long
-            if (font.width(component) > maxWidth) {
-                return font.plainSubstrByWidth(component, maxWidth - font.width(". . .")) + ". . .";
-            } else {
-                return component;
-            }
-        }
-
-        FormattedText getTruncatedText(Font font, Component component, int maxWidth, Style style) {
-            // trim component when too long
-            if (font.width(component) > maxWidth) {
-                return FormattedText.composite(font.getSplitter().headByWidth(component, maxWidth - font.width(". . ."), style), FormattedText.of(". . ."));
-            } else {
-                return component;
-            }
-        }
     }
 
     private class CategoryEntry extends Entry {
         private final Button button;
 
-        public CategoryEntry(Component title, ConfigScreen screen) {
-            super(title, null);
+        public CategoryEntry(EntryData.CategoryEntryData data) {
+            super(data);
             // should really be truncated when too long but haven't found a way to convert result back to component for using with button while preserving formatting
-            this.button = new Button(10, 5, 260, 20, title, button -> {
+            this.button = new Button(10, 5, 260, 20, this.getTitle(), button -> {
                 // values are usually preserved, so here we force a reset
                 ConfigScreen.this.searchTextField.setValue("");
                 ConfigScreen.this.searchTextField.setFocus(false);
-                ConfigScreen.this.minecraft.setScreen(screen);
+                ConfigScreen.this.minecraft.setScreen(data.getScreen());
             });
+        }
+
+        @Override
+        void addLines(Font font, IEntryData data, List<FormattedText> lines) {
+            final String comment = data.getComment();
+            if (comment != null && !comment.isEmpty()) {
+                lines.addAll(font.getSplitter().splitLines(comment, 200, Style.EMPTY));
+            }
         }
 
         @Override
@@ -588,27 +581,65 @@ public abstract class ConfigScreen extends Screen {
         private final FormattedCharSequence visualTitle;
         final Button resetButton;
 
-        public ConfigEntry(EntryData.ConfigEntryData<T> configEntryData) {
-            this(configEntryData, Object::toString);
-        }
-
-        public ConfigEntry(EntryData.ConfigEntryData<T> configEntryData, Function<T, String> toString) {
-            // default value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values which would otherwise be converted to their corresponding formatting and therefore not display)
-            super(configEntryData.getDisplayTitle(), makeTooltip(ConfigScreen.this.font, configEntryData, toString));
-            this.configEntryData = configEntryData;
-            FormattedText truncatedTitle = this.getTruncatedText(ConfigScreen.this.font, this.getTitle(), 260 - 70, Style.EMPTY);
+        public ConfigEntry(EntryData.ConfigEntryData<T> data) {
+            super(data);
+            this.configEntryData = data;
+            FormattedText truncatedTitle = ScreenUtil.getTruncatedText(ConfigScreen.this.font, this.getTitle(), 260 - 70, Style.EMPTY);
             this.visualTitle = Language.getInstance().getVisualOrder(truncatedTitle);
             final List<FormattedCharSequence> tooltip = ConfigScreen.this.font.split(RESET_TOOLTIP, 200);
             this.resetButton = new IconButton(0, 0, 20, 20, 0, 0, button -> {
-                configEntryData.resetCurrentValue();
-                this.onConfigValueChanged(configEntryData.getCurrentValue(), true);
+                data.resetCurrentValue();
+                this.onConfigValueChanged(data.getCurrentValue(), true);
             }, (button, matrixStack, mouseX, mouseY) -> {
                 if (button.active) {
                     ConfigScreen.this.setActiveTooltip(tooltip);
                 }
             });
-            this.resetButton.active = configEntryData.mayResetValue();
+            this.resetButton.active = data.mayResetValue();
             this.children.add(this.resetButton);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        void addLines(Font font, IEntryData data, List<FormattedText> lines) {
+            final Component component = new TextComponent(data.getPath()).withStyle(ChatFormatting.YELLOW);
+            lines.addAll(font.getSplitter().splitLines(component, 200, Style.EMPTY));
+            final String comment = data.getComment();
+            if (comment != null && !comment.isEmpty()) {
+                final List<FormattedText> splitLines = font.getSplitter().splitLines(comment, 200, Style.EMPTY);
+                int rangeIndex = -1;
+                // finds index of range (number types) / allowed values (enums) line
+                for (int i = 0; i < splitLines.size(); i++) {
+                    String text = splitLines.get(i).getString();
+                    if (text.startsWith("Range: ") || text.startsWith("Allowed Values: ")) {
+                        rangeIndex = i;
+                        break;
+                    }
+                }
+                // sets text color from found index to end to gray
+                if (rangeIndex != -1) {
+                    for (int i = rangeIndex; i < splitLines.size(); i++) {
+                        splitLines.set(i, new TextComponent(splitLines.get(i).getString()).withStyle(ChatFormatting.GRAY));
+                    }
+                }
+                lines.addAll(splitLines);
+            }
+            EntryData.ConfigEntryData<T> configData = (EntryData.ConfigEntryData<T>) data;
+            // default value
+            lines.addAll(font.getSplitter().splitLines(new TranslatableComponent("configured.gui.tooltip.default", this.valueToString(configData.getDefaultValue())).withStyle(ChatFormatting.GRAY), 200, Style.EMPTY));
+            if (data.withPath()) { // path is only added when searching as there would be no way to tell otherwise where the entry is located
+                final Component pathComponent = configData.getFullPath().stream()
+                        .map(ScreenUtil::formatLabel)
+                        .reduce((o1, o2) -> new TextComponent("").append(o1).append(" > ").append(o2))
+                        .orElse(TextComponent.EMPTY);
+                lines.addAll(font.getSplitter().splitLines(new TranslatableComponent("configured.gui.tooltip.path", pathComponent).withStyle(ChatFormatting.GRAY), 200, Style.EMPTY));
+            }
+        }
+
+        String valueToString(T value) {
+            // value converter (toString) is necessary for enum values (issue is visible when handling chatformatting values
+            // which would otherwise be converted to their corresponding formatting and therefore not display)
+            return value.toString();
         }
 
         public void onConfigValueChanged(T newValue, boolean reset) {
@@ -655,46 +686,6 @@ public abstract class ConfigScreen extends Screen {
             });
             builder.addAll(ConfigEntry.this.children);
             return builder.build();
-        }
-
-        static <T> List<FormattedCharSequence> makeTooltip(Font font, EntryData.ConfigEntryData<T> configEntryData, Function<T, String> toString) {
-            return makeTooltip(font, configEntryData.getPath(), configEntryData.getValueSpec().getComment(), toString.apply(configEntryData.getDefaultValue()), configEntryData.withPath());
-        }
-
-        private static List<FormattedCharSequence> makeTooltip(Font font, List<String> path, String comment, String defaultValue, boolean withPath) {
-            final List<FormattedText> lines = Lists.newArrayList();
-            // get title
-            String name = Iterables.getLast(path, "");
-            if (name != null && !name.isEmpty()) {
-                final Component component = new TextComponent(name).withStyle(ChatFormatting.YELLOW);
-                lines.addAll(font.getSplitter().splitLines(component, 200, Style.EMPTY));
-            }
-            if (comment != null && !comment.isEmpty()) {
-                final List<FormattedText> splitLines = font.getSplitter().splitLines(comment, 200, Style.EMPTY);
-                int rangeIndex = -1;
-                // finds index of range (number types) / allowed values (enums) line
-                for (int i = 0; i < splitLines.size(); i++) {
-                    String text = splitLines.get(i).getString();
-                    if (text.startsWith("Range: ") || text.startsWith("Allowed Values: ")) {
-                        rangeIndex = i;
-                        break;
-                    }
-                }
-                // sets text color from found index to end to gray
-                if (rangeIndex != -1) {
-                    for (int i = rangeIndex; i < splitLines.size(); i++) {
-                        splitLines.set(i, new TextComponent(splitLines.get(i).getString()).withStyle(ChatFormatting.GRAY));
-                    }
-                }
-                lines.addAll(splitLines);
-            }
-            // default value
-            lines.addAll(font.getSplitter().splitLines(new TranslatableComponent("configured.gui.tooltip.default", defaultValue).withStyle(ChatFormatting.GRAY), 200, Style.EMPTY));
-            if (withPath) { // path is only added when searching as there would be no way to tell otherwise where the entry is located
-                final Component pathComponent = path.stream().map(ScreenUtil::formatLabel).reduce((o1, o2) -> new TextComponent("").append(o1).append(" > ").append(o2)).orElse(TextComponent.EMPTY);
-                lines.addAll(font.getSplitter().splitLines(new TranslatableComponent("configured.gui.tooltip.path", pathComponent).withStyle(ChatFormatting.GRAY), 200, Style.EMPTY));
-            }
-            return Language.getInstance().getVisualOrder(lines);
         }
     }
 
@@ -779,8 +770,8 @@ public abstract class ConfigScreen extends Screen {
     private abstract class EditScreenEntry<T> extends ConfigEntry<T> {
         private final Button button;
 
-        public EditScreenEntry(EntryData.ConfigEntryData<T> configEntryData, Function<T, String> toString, Class<?> type) {
-            super(configEntryData, toString);
+        public EditScreenEntry(EntryData.ConfigEntryData<T> configEntryData, Class<?> type) {
+            super(configEntryData);
             this.button = new Button(10, 5, 44, 20, new TranslatableComponent("configured.gui.edit"), button -> {
                 // safety precaution for dealing with lists
                 try {
@@ -796,6 +787,9 @@ public abstract class ConfigScreen extends Screen {
             this.children().add(this.button);
         }
 
+        @Override
+        abstract String valueToString(T value);
+
         abstract Screen makeEditScreen(String type, T currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<T> onSave);
 
         @Override
@@ -810,7 +804,12 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     private class EnumEntry extends EditScreenEntry<Enum<?>> {
         public EnumEntry(EntryData.ConfigEntryData<Enum<?>> configEntryData) {
-            super(configEntryData, v -> ScreenUtil.formatLabel(v.name().toLowerCase(Locale.ROOT)).getString(), Enum.class);
+            super(configEntryData, Enum.class);
+        }
+
+        @Override
+        String valueToString(Enum<?> value) {
+            return ScreenUtil.formatText(value.name().toLowerCase(Locale.ROOT));
         }
 
         @Override
@@ -822,7 +821,12 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     private class StringEntry extends EditScreenEntry<String> {
         public StringEntry(EntryData.ConfigEntryData<String> configEntryData) {
-            super(configEntryData, Function.identity(), String.class);
+            super(configEntryData, String.class);
+        }
+
+        @Override
+        String valueToString(String value) {
+            return value;
         }
 
         @Override
@@ -833,23 +837,26 @@ public abstract class ConfigScreen extends Screen {
 
     @Environment(EnvType.CLIENT)
     private class ListEntry<T> extends EditScreenEntry<List<T>> {
-        private final Function<Object, String> toString;
         private final Function<String, T> fromString;
 
         public ListEntry(EntryData.ConfigEntryData<List<T>> configEntryData, Class<T> type, Function<String, T> fromString) {
-            this(configEntryData, type, Object::toString, fromString);
+            super(configEntryData, type);
+            this.fromString = fromString;
         }
 
-        public ListEntry(EntryData.ConfigEntryData<List<T>> configEntryData, Class<T> type, Function<Object, String> toString, Function<String, T> fromString) {
-            super(configEntryData, v -> "[" + v.stream().map(toString).collect(Collectors.joining(", ")) + "]", type);
-            this.toString = toString;
-            this.fromString = fromString;
+        @Override
+        final String valueToString(List<T> value) {
+            return "[" + value.stream().map(this::listValueToString).collect(Collectors.joining(", ")) + "]";
+        }
+
+        String listValueToString(Object value) {
+            return value.toString();
         }
 
         @Override
         Screen makeEditScreen(String type, List<T> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<T>> onSave) {
             return new EditListScreen(ConfigScreen.this, new TranslatableComponent("configured.gui.list.edit", type), ConfigScreen.this.background, currentValue.stream()
-                    .map(this.toString)
+                    .map(this::listValueToString)
                     .collect(Collectors.toList()), input -> {
                 try {
                     this.fromString.apply(input);
@@ -873,7 +880,12 @@ public abstract class ConfigScreen extends Screen {
         @SuppressWarnings("unchecked")
         public <T extends Enum<T>> EnumListEntry(EntryData.ConfigEntryData<List<Enum<?>>> configEntryData, Class<Enum<?>> clazz) {
             // enums are read as strings from file
-            super(configEntryData, clazz, v -> v instanceof Enum<?> e ? e.name() : v.toString(), v -> Enum.valueOf((Class<T>) clazz, v));
+            super(configEntryData, clazz, v -> Enum.valueOf((Class<T>) clazz, v));
+        }
+
+        @Override
+        String listValueToString(Object value) {
+            return value instanceof Enum<?> e ? e.name() : super.listValueToString(value);
         }
     }
 

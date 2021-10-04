@@ -1,6 +1,7 @@
 package com.mrcrayfish.configured.config.data;
 
 
+import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -12,6 +13,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Comparator;
 import java.util.List;
@@ -19,6 +22,11 @@ import java.util.Locale;
 import java.util.Map;
 
 public interface IEntryData extends Comparable<IEntryData> {
+
+    String getPath();
+
+    @Nullable
+    String getComment();
 
     Component getTitle();
 
@@ -113,19 +121,29 @@ public interface IEntryData extends Comparable<IEntryData> {
         return comparator.compare(this, other);
     }
 
-    static Map<Object, IEntryData> makeValueToDataMap(ForgeConfigSpec spec) {
+    static Map<Object, IEntryData> makeValueToDataMap(ModConfig config) {
+        if (checkInvalid(config)) {
+            return ImmutableMap.of();
+        }
         Map<Object, IEntryData> allData = Maps.newHashMap();
-        makeValueToDataMap(spec, spec.getValues(), allData);
+        ForgeConfigSpec spec = (ForgeConfigSpec) config.getSpec();
+        makeValueToDataMap(spec, spec.getValues(), config.getConfigData(), allData);
         return ImmutableMap.copyOf(allData);
     }
 
-    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, Map<Object, IEntryData> allData) {
+    static boolean checkInvalid(ModConfig config) {
+        return config.getConfigData() == null || !(config.getSpec() instanceof ForgeConfigSpec spec) || !spec.isLoaded();
+    }
+
+    private static void makeValueToDataMap(ForgeConfigSpec spec, UnmodifiableConfig values, CommentedConfig comments, Map<Object, IEntryData> allData) {
         values.valueMap().forEach((path, value) -> {
-            if (value instanceof UnmodifiableConfig configValue) {
-                allData.put(configValue, new EntryData.CategoryEntryData(ScreenUtil.formatLabel(path), configValue));
-                makeValueToDataMap(spec, configValue, allData);
+            if (value instanceof UnmodifiableConfig category) {
+                final EntryData.CategoryEntryData data = new EntryData.CategoryEntryData(path, category, comments.getComment(path));
+                allData.put(category, data);
+                makeValueToDataMap(spec, category, (CommentedConfig) comments.valueMap().get(path), allData);
             } else if (value instanceof ForgeConfigSpec.ConfigValue<?> configValue) {
-                allData.put(configValue, new EntryData.ConfigEntryData<>(configValue, spec.getRaw(configValue.getPath())));
+                final EntryData.ConfigEntryData<?> data = new EntryData.ConfigEntryData<>(path, configValue, spec.getRaw(configValue.getPath()));
+                allData.put(configValue, data);
             }
         });
     }

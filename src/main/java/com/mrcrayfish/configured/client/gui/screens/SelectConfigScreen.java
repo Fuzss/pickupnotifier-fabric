@@ -1,7 +1,6 @@
 package com.mrcrayfish.configured.client.gui.screens;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.client.gui.components.ConfigSelectionList;
@@ -20,7 +19,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.config.ModConfig;
 
 import java.util.List;
@@ -36,7 +34,7 @@ public class SelectConfigScreen extends Screen {
 	private final ResourceLocation background;
 	private final Component displayName;
 	private final Map<ModConfig, Map<Object, IEntryData>> configs;
-	private List<FormattedCharSequence> toolTip;
+	private List<FormattedCharSequence> activeTooltip;
 	private EditBox searchBox;
 	private ConfigSelectionList list;
 	private Button openButton;
@@ -49,9 +47,7 @@ public class SelectConfigScreen extends Screen {
 		this.lastScreen = lastScreen;
 		this.displayName = displayName;
 		this.background = optionsBackground;
-		this.configs = configs.stream().collect(Collectors.collectingAndThen(Collectors.toMap(Function.identity(), config -> {
-			return this.invalidData(config) ? Maps.<Object, IEntryData>newHashMap() : IEntryData.makeValueToDataMap((ForgeConfigSpec) config.getSpec());
-		}), ImmutableMap::copyOf));
+		this.configs = configs.stream().collect(Collectors.collectingAndThen(Collectors.toMap(Function.identity(), IEntryData::makeValueToDataMap), ImmutableMap::copyOf));
 		this.initServerPermissions();
 	}
 
@@ -110,11 +106,12 @@ public class SelectConfigScreen extends Screen {
 		this.updateButtonStatus(false);
 		this.list = new ConfigSelectionList(this, this.minecraft, this.width, this.height, 50, this.height - 60, 36, this.searchBox.getValue());
 		this.addWidget(this.list);
-		this.addRenderableWidget(new ImageButton(23, 14, 19, 23, 0, 0, 0, ConfigScreen.LOGO_TEXTURE, 32, 32, button -> {
+		final List<FormattedCharSequence> tooltip = this.font.split(ConfigScreen.INFO_TOOLTIP, 200);
+		this.addRenderableWidget(new ImageButton(14, 14, 19, 23, 0, 0, 0, ConfigScreen.LOGO_TEXTURE, 32, 32, button -> {
 			Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
 			this.handleComponentClicked(style);
 		}, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
-			this.renderTooltip(poseStack, this.font.split(ConfigScreen.INFO_TOOLTIP, 200), mouseX, mouseY);
+			this.setActiveTooltip(tooltip);
 		}, TextComponent.EMPTY));
 		this.setInitialFocus(this.searchBox);
 	}
@@ -135,15 +132,15 @@ public class SelectConfigScreen extends Screen {
 	}
 
 	@Override
-	public void render(PoseStack poseStack, int i, int j, float f) {
-		this.toolTip = null;
+	public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
+		this.activeTooltip = null;
 		ScreenUtil.renderCustomBackground(this, this.background, 0);
-		this.list.render(poseStack, i, j, f);
-		this.searchBox.render(poseStack, i, j, f);
+		this.list.render(poseStack, mouseX, mouseY, partialTicks);
+		this.searchBox.render(poseStack, mouseX, mouseY, partialTicks);
 		drawCenteredString(poseStack, this.font, this.title, this.width / 2, 7, 16777215);
-		super.render(poseStack, i, j, f);
-		if (this.toolTip != null) {
-			this.renderTooltip(poseStack, this.toolTip, i, j);
+		super.render(poseStack, mouseX, mouseY, partialTicks);
+		if (this.activeTooltip != null) {
+			this.renderTooltip(poseStack, this.activeTooltip, mouseX, mouseY);
 		}
 	}
 
@@ -171,8 +168,8 @@ public class SelectConfigScreen extends Screen {
 		}
 	}
 
-	public void setToolTip(List<FormattedCharSequence> list) {
-		this.toolTip = list;
+	public void setActiveTooltip(List<FormattedCharSequence> list) {
+		this.activeTooltip = list;
 	}
 
 	public Component getDisplayName() {
@@ -209,9 +206,5 @@ public class SelectConfigScreen extends Screen {
 
 	public void setServerPermissions() {
 		this.serverPermissions = true;
-	}
-
-	public boolean invalidData(ModConfig config) {
-		return config.getConfigData() == null || !(config.getSpec() instanceof ForgeConfigSpec spec) || !spec.isLoaded();
 	}
 }
