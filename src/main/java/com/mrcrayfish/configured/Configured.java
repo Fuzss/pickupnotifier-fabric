@@ -38,8 +38,8 @@ public class Configured implements ModInitializer {
     private void initTestConfigs() {
         if (ModLoaderEnvironment.isDevelopmentEnvironment()) {
             ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.CLIENT, TestConfig.CLIENT_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.CLIENT.extension()));
-            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.COMMON, TestConfig.CLIENT_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.COMMON.extension()));
-            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.SERVER, TestConfig.CLIENT_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.SERVER.extension()));
+            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.COMMON, TestConfig.COMMON_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.COMMON.extension()));
+            ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.SERVER, TestConfig.SERVER_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.SERVER.extension()));
         }
     }
 }

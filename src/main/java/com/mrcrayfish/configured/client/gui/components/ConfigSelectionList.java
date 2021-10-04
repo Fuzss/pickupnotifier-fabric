@@ -151,7 +151,7 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 					if (leftHovered) {
 						this.screen.setActiveTooltip(this.minecraft.font.split(ConfigSelectionList.NO_PERMISSIONS_TOOLTIP, 200));
 					}
-				} else if (this.carefulEditing()) {
+				} else if (this.onMultiplayerServer()) {
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 32.0F, (float)textureY, 32, 32, 256, 256);
 					GuiComponent.blit(poseStack, entryLeft, entryTop, 64.0F, textureY, 32, 32, 256, 256);
 					if (leftHovered) {
@@ -201,11 +201,15 @@ public class ConfigSelectionList extends CustomBackgroundObjectSelectionList<Con
 		}
 
 		private boolean noPermissions() {
-			return this.config.getType() == ModConfig.Type.SERVER && !this.screen.getServerPermissions();
+			return this.serverConfig() && !this.screen.getServerPermissions();
 		}
 
-		public boolean carefulEditing() {
-			return this.config.getType() == ModConfig.Type.SERVER && !this.minecraft.isLocalServer();
+		public boolean serverConfig() {
+			return this.config.getType() == ModConfig.Type.SERVER;
+		}
+
+		public boolean onMultiplayerServer() {
+			return this.serverConfig() && !this.minecraft.isLocalServer();
 		}
 
 		boolean isDisabled() {

@@ -8,9 +8,11 @@ import com.mrcrayfish.configured.client.gui.util.ScreenUtil;
 import com.mrcrayfish.configured.client.util.ServerConfigUploader;
 import com.mrcrayfish.configured.config.data.IEntryData;
 import com.mrcrayfish.configured.network.client.message.C2SAskPermissionsMessage;
+import fuzs.puzzleslib.core.ModLoaderEnvironment;
 import fuzs.puzzleslib.network.NetworkHandler;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -19,8 +21,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraftforge.ForgeConfigs;
 import net.minecraftforge.fml.config.ModConfig;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +45,9 @@ public class SelectConfigScreen extends Screen {
 	private Button openButton;
 	private Button restoreButton;
 	private Button fileButton;
+	private Button openServerButton;
+	private Button restoreServerButton;
+	private Button copyServerButton;
 	private boolean serverPermissions;
 
 	public SelectConfigScreen(Screen lastScreen, Component displayName, ResourceLocation optionsBackground, Set<ModConfig> configs) {
@@ -73,13 +81,15 @@ public class SelectConfigScreen extends Screen {
 		this.searchBox.setResponder(query -> this.list.refreshList(query));
 		this.addWidget(this.searchBox);
 		this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> this.onClose()));
-		this.openButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 52, 150, 20, new TranslatableComponent("configured.gui.select.edit"), button -> {
+		final Button.OnPress onPressOpen = button -> {
 			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
 			if (selected != null) {
 				selected.openConfig();
 			}
-		}));
-		this.restoreButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 52, 150, 20, new TranslatableComponent("configured.gui.select.restore"), button -> {
+		};
+		this.openButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 52, 150, 20, new TranslatableComponent("configured.gui.select.edit"), onPressOpen));
+		this.openServerButton = this.addRenderableWidget(new Button(this.width / 2 - 50 - 104, this.height - 52, 100, 20, new TranslatableComponent("configured.gui.select.server.edit"), onPressOpen));
+		final Button.OnPress onPressRestore = button -> {
 			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
 			if (selected != null) {
 				Screen confirmScreen = ScreenUtil.makeConfirmationScreen(result -> {
@@ -95,6 +105,20 @@ public class SelectConfigScreen extends Screen {
 				}, new TranslatableComponent("configured.gui.message.restore"), TextComponent.EMPTY, this.background);
 				this.minecraft.setScreen(confirmScreen);
 			}
+		};
+		this.restoreButton = this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 52, 150, 20, new TranslatableComponent("configured.gui.select.restore"), onPressRestore));
+		this.restoreServerButton = this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 52, 100, 20, new TranslatableComponent("configured.gui.select.server.restore"), onPressRestore));
+		this.copyServerButton = this.addRenderableWidget(new Button(this.width / 2 - 50 + 104, this.height - 52, 100, 20, new TranslatableComponent("configured.gui.select.server.copy"), button -> {
+			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
+			if (selected != null) {
+				Path destination = ModLoaderEnvironment.getGameDir().resolve(ForgeConfigs.DEFAULT_CONFIG_NAME).resolve(selected.getConfig().getFileName());
+				this.minecraft.setScreen(ScreenUtil.makeConfirmationScreen(result -> {
+					if (result) {
+//						this.valueToData.values().forEach(IEntryData::discardCurrentValue);
+					}
+					this.minecraft.setScreen(this);
+				}, new TranslatableComponent("configured.gui.message.copy.title"), Files.exists(destination) ? new TranslatableComponent("configured.gui.message.copy.warning").withStyle(ChatFormatting.RED) : TextComponent.EMPTY, this.background));
+			}
 		}));
 		this.fileButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, new TranslatableComponent("configured.gui.select.open"), button -> {
 			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
@@ -106,12 +130,11 @@ public class SelectConfigScreen extends Screen {
 		this.updateButtonStatus(false);
 		this.list = new ConfigSelectionList(this, this.minecraft, this.width, this.height, 50, this.height - 60, 36, this.searchBox.getValue());
 		this.addWidget(this.list);
-		final List<FormattedCharSequence> tooltip = this.font.split(ConfigScreen.INFO_TOOLTIP, 200);
 		this.addRenderableWidget(new ImageButton(14, 14, 19, 23, 0, 0, 0, ConfigScreen.LOGO_TEXTURE, 32, 32, button -> {
 			Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
 			this.handleComponentClicked(style);
 		}, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
-			this.setActiveTooltip(tooltip);
+			this.renderTooltip(poseStack, this.font.split(ConfigScreen.INFO_TOOLTIP, 200), mouseX, mouseY);
 		}, TextComponent.EMPTY));
 		this.setInitialFocus(this.searchBox);
 	}
@@ -145,27 +168,28 @@ public class SelectConfigScreen extends Screen {
 	}
 
 	public void updateButtonStatus(boolean active) {
-		if (this.list != null) {
-			this.openButton.active = active;
-			this.fileButton.active = active;
-			if (active) {
-				final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
-				if (selected != null) {
-					this.fileButton.active = !selected.carefulEditing();
-					this.restoreButton.active = selected.mayResetValue();
-				} else {
-					this.fileButton.active = true;
-					this.restoreButton.active = true;
-				}
-			} else {
-				this.fileButton.active = false;
-				this.restoreButton.active = false;
-			}
+		if (this.list != null && active) {
+			final ConfigSelectionList.ConfigListEntry selected = this.list.getSelected();
+			this.updateButtonVisibility(selected.serverConfig());
+			this.openButton.active = true;
+			this.restoreButton.active = this.restoreServerButton.active = selected.mayResetValue();
+			this.fileButton.active = !selected.onMultiplayerServer();
+			this.copyServerButton.active = true;
 		} else {
+			this.updateButtonVisibility(false);
 			this.openButton.active = false;
+			this.restoreButton.active = this.restoreServerButton.active = false;
 			this.fileButton.active = false;
-			this.restoreButton.active = false;
+			this.copyServerButton.active = false;
 		}
+	}
+
+	private void updateButtonVisibility(boolean server) {
+		this.openButton.visible = !server;
+		this.restoreButton.visible = !server;
+		this.openServerButton.visible = server;
+		this.restoreServerButton.visible = server;
+		this.copyServerButton.visible = server;
 	}
 
 	public void setActiveTooltip(List<FormattedCharSequence> list) {

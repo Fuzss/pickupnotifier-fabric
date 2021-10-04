@@ -287,12 +287,11 @@ public abstract class ConfigScreen extends Screen {
         this.list = new ConfigList(this.getConfigListEntries(this.searchTextField.getValue()));
         this.addWidget(this.list);
         this.addWidget(this.searchTextField);
-        final List<FormattedCharSequence> tooltip = this.font.split(INFO_TOOLTIP, 200);
         this.addRenderableWidget(new ImageButton(14, 14, 19, 23, 0, 0, 0, LOGO_TEXTURE, 32, 32, button -> {
             Style style = Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, Configured.URL));
             this.handleComponentClicked(style);
         }, (Button button, PoseStack poseStack, int mouseX, int mouseY) -> {
-            this.setActiveTooltip(tooltip);
+            this.renderTooltip(poseStack, this.font.split(INFO_TOOLTIP, 200), mouseX, mouseY);
         }, TextComponent.EMPTY));
     }
 
