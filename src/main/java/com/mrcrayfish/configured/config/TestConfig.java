@@ -9,9 +9,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Author: MrCrayfish
- */
 public class TestConfig {
     public final ForgeConfigSpec.ConfigValue<String> stringValue;
     public final ForgeConfigSpec.BooleanValue booleanValue;

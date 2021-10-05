@@ -68,7 +68,7 @@ public class SelectConfigScreen extends Screen {
 	@Override
 	protected void init() {
 		this.minecraft.keyboardHandler.setSendRepeatsToGui(true);
-		this.searchBox = new EditBox(this.font, this.width / 2 - 108, 22, 216, 20, this.searchBox, TextComponent.EMPTY) {
+		this.searchBox = new EditBox(this.font, this.width / 2 - 121, 22, 242, 20, this.searchBox, TextComponent.EMPTY) {
 
 			@Override
 			public boolean mouseClicked(double mouseX, double mouseY, int button) {

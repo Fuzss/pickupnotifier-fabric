@@ -20,7 +20,6 @@ public class EntryData implements IEntryData {
     private final String path;
     private final String comment;
     private final Component title;
-    private String searchQuery = "";
 
     EntryData(String path, String comment, Component title) {
         this.path = path;
@@ -45,16 +44,6 @@ public class EntryData implements IEntryData {
     }
 
     @Override
-    public void setSearchQuery(String query) {
-        this.searchQuery = query;
-    }
-
-    @Override
-    public String getSearchQuery() {
-        return this.searchQuery;
-    }
-
-    @Override
     public boolean mayResetValue() {
         return false;
     }
@@ -66,17 +55,19 @@ public class EntryData implements IEntryData {
 
     @Override
     public void resetCurrentValue() {
-
     }
 
     @Override
     public void discardCurrentValue() {
-
     }
 
     @Override
     public void saveConfigValue() {
+    }
 
+    @Override
+    public boolean category() {
+        return false;
     }
 
     public static class CategoryEntryData extends EntryData {
@@ -102,9 +93,8 @@ public class EntryData implements IEntryData {
         }
 
         @Override
-        public int compareTo(IEntryData other) {
-            // category entries always on top
-            return !(other instanceof CategoryEntryData) ? -1 : super.compareTo(other);
+        public boolean category() {
+            return true;
         }
     }
 

@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public interface IEntryData extends Comparable<IEntryData> {
+public interface IEntryData {
 
     String getPath();
 
@@ -32,11 +32,11 @@ public interface IEntryData extends Comparable<IEntryData> {
     /**
      * @return title or colored title for search
      */
-    default Component getDisplayTitle() {
-        if (this.withPath()) {
-            List<Integer> indices = this.getSearchIndices(this.getSearchableTitle(), this.getSearchQuery());
+    default Component getDisplayTitle(String searchHighlight) {
+        if (searchHighlight != null && !searchHighlight.isEmpty()) {
+            List<Integer> indices = this.getSearchIndices(this.getSearchableTitle(), searchHighlight);
             if (!indices.isEmpty()) {
-                return this.getColoredTitle(this.getTitle().getString(), this.getSearchQuery().length(), indices);
+                return this.getColoredTitle(this.getTitle().getString(), searchHighlight.length(), indices);
             }
         }
         return this.getTitle();
@@ -82,16 +82,8 @@ public interface IEntryData extends Comparable<IEntryData> {
         return this.getTitle().getString().toLowerCase(Locale.ROOT);
     }
 
-    default boolean containsSearchQuery() {
-        return this.getSearchableTitle().contains(this.getSearchQuery());
-    }
-
-    void setSearchQuery(String query);
-
-    String getSearchQuery();
-
-    default boolean withPath() {
-        return !this.getSearchQuery().isEmpty();
+    default boolean mayInclude(String searchHighlight) {
+        return searchHighlight == null || searchHighlight.isEmpty() || this.getSearchableTitle().contains(searchHighlight);
     }
 
     boolean mayResetValue();
@@ -110,14 +102,19 @@ public interface IEntryData extends Comparable<IEntryData> {
      */
     void saveConfigValue();
 
-    @Override
-    default int compareTo(IEntryData other) {
-        Comparator<IEntryData> comparator = Comparator.comparing(o -> o.getTitle().getString());
-        if (this.withPath()) {
+    boolean category();
+
+    static Comparator<IEntryData> getDefaultComparator(final boolean reversed) {
+        final Comparator<IEntryData> defaultComparator = Comparator.comparing(o -> o.getTitle().getString());
+        return Comparator.comparing(IEntryData::category).reversed().thenComparing(reversed ? defaultComparator.reversed() : defaultComparator);
+    }
+
+    static Comparator<IEntryData> getSearchComparator(final String searchHighlight, final boolean reversed) {
+        if (searchHighlight != null && !searchHighlight.isEmpty()) {
             // when searching sort by index of query, only if both match sort alphabetically
-            comparator = Comparator.<IEntryData>comparingInt(o -> o.getSearchableTitle().indexOf(o.getSearchQuery())).thenComparing(comparator);
+            return Comparator.<IEntryData>comparingInt(o -> o.getSearchableTitle().indexOf(searchHighlight)).thenComparing(getDefaultComparator(false));
         }
-        return comparator.compare(this, other);
+        return getDefaultComparator(reversed);
     }
 
     static Map<Object, IEntryData> makeValueToDataMap(ModConfig config) {

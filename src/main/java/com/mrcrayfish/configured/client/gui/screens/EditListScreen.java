@@ -18,7 +18,6 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
@@ -38,7 +37,7 @@ public class EditListScreen extends Screen {
     private final List<MutableObject<String>> values;
     private final Predicate<String> validator;
     private final Consumer<List<String>> onSave;
-    private final Set<EditListEntry> invalidEntries = Sets.newHashSet();
+    private final Set<EditEntry> invalidEntries = Sets.newHashSet();
     private EditList list;
     private Button doneButton;
     @Nullable
@@ -65,20 +64,15 @@ public class EditListScreen extends Screen {
 
     @Override
     protected void init() {
-        this.list = new EditList();
+        this.list = new EditList(this.values);
         this.addWidget(this.list);
-        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 50 - 104, this.height - 28, 100, 20, CommonComponents.GUI_DONE, button -> {
+        this.doneButton = this.addRenderableWidget(new Button(this.width / 2 - 154, this.height - 28, 150, 20, CommonComponents.GUI_DONE, button -> {
             this.onSave.accept(this.values.stream()
                     .map(MutableObject::getValue)
                     .collect(Collectors.toList()));
             this.minecraft.setScreen(this.lastScreen);
         }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50, this.height - 28, 100, 20, new TranslatableComponent("configured.gui.add"), button -> {
-            MutableObject<String> holder = new MutableObject<>("");
-            this.values.add(holder);
-            this.list.addEntry(new EditListEntry(this.list, holder, true));
-        }));
-        this.addRenderableWidget(new Button(this.width / 2 - 50 + 104, this.height - 28, 100, 20, CommonComponents.GUI_CANCEL, button -> {
+        this.addRenderableWidget(new Button(this.width / 2 + 4, this.height - 28, 150, 20, CommonComponents.GUI_CANCEL, button -> {
             this.minecraft.setScreen(this.lastScreen);
         }));
     }
@@ -117,23 +111,24 @@ public class EditListScreen extends Screen {
         }
     }
 
-    void markInvalid(EditListEntry entry) {
+    void markInvalid(EditEntry entry) {
         this.invalidEntries.add(entry);
         this.updateDoneButton();
     }
 
-    void clearInvalid(EditListEntry entry) {
+    void clearInvalid(EditEntry entry) {
         this.invalidEntries.remove(entry);
         this.updateDoneButton();
     }
 
     @Environment(EnvType.CLIENT)
     public class EditList extends CustomBackgroundContainerObjectSelectionList<EditListEntry> {
-        public EditList() {
+        public EditList(List<MutableObject<String>> values) {
             super(EditListScreen.this.minecraft, EditListScreen.this.background, EditListScreen.this.width, EditListScreen.this.height, 36, EditListScreen.this.height - 36, 24);
-            EditListScreen.this.values.forEach(value -> {
-                this.addEntry(new EditListEntry(this, value));
+            values.forEach(value -> {
+                this.addEntry(new EditEntry(this, value));
             });
+            this.addEntry(new AddEntry(this, values));
         }
 
         @Override
@@ -146,9 +141,9 @@ public class EditListScreen extends Screen {
             return 260;
         }
 
-        @Override
-        protected int addEntry(EditListEntry entry) {
-            return super.addEntry(entry);
+        protected int addEntry(int index, EditListEntry entry) {
+            this.children().add(index, entry);
+            return this.children().size() - 1;
         }
 
         @Override
@@ -157,16 +152,63 @@ public class EditListScreen extends Screen {
         }
     }
 
-    public class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
+    public static abstract class EditListEntry extends ContainerObjectSelectionList.Entry<EditListEntry> {
+
+    }
+
+    private class AddEntry extends EditListEntry {
+        private final Button addButton;
+
+        public AddEntry(EditList list, List<MutableObject<String>> values) {
+            final List<FormattedCharSequence> tooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.add"), 200);
+            this.addButton = new IconButton(0, 0, 20, 20, 80, 0, ConfigScreen.ICONS_LOCATION, button -> {
+                MutableObject<String> holder = new MutableObject<>("");
+                values.add(holder);
+                list.addEntry(list.children().size() - 1, new EditEntry(list, holder, true));
+            }, (button, matrixStack, mouseX, mouseY) -> {
+                if (button.active) {
+                    EditListScreen.this.activeTooltip = tooltip;
+                }
+            });
+        }
+
+        @Override
+        public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
+            this.addButton.x = entryLeft + rowWidth - 21;
+            this.addButton.y = entryTop;
+            this.addButton.render(poseStack, mouseX, mouseY, partialTicks);
+        }
+
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return ImmutableList.of(this.addButton);
+        }
+
+        @Override
+        public List<? extends NarratableEntry> narratables() {
+            return ImmutableList.of(new NarratableEntry() {
+                @Override
+                public NarratableEntry.NarrationPriority narrationPriority() {
+                    return NarratableEntry.NarrationPriority.HOVERED;
+                }
+
+                @Override
+                public void updateNarration(NarrationElementOutput output) {
+                }
+            }, this.addButton);
+        }
+    }
+
+    private class EditEntry extends EditListEntry {
         private final MutableObject<String> holder;
         private final ConfigEditBox textField;
         private final Button deleteButton;
 
-        EditListEntry(EditList list, MutableObject<String> holder) {
+        public EditEntry(EditList list, MutableObject<String> holder) {
             this(list, holder, false);
         }
 
-        private EditListEntry(EditList list, MutableObject<String> holder, boolean withFocus) {
+        public EditEntry(EditList list, MutableObject<String> holder, boolean withFocus) {
             this.holder = holder;
             this.textField = new ConfigEditBox(EditListScreen.this.font, 0, 0, 260 - 24, 18, () -> EditListScreen.this.activeTextField, activeTextField -> EditListScreen.this.activeTextField = activeTextField) {
 
@@ -190,7 +232,7 @@ public class EditListScreen extends Screen {
             this.textField.setFocus(withFocus);
 
             final List<FormattedCharSequence> tooltip = EditListScreen.this.minecraft.font.split(new TranslatableComponent("configured.gui.tooltip.remove"), 200);
-            this.deleteButton = new IconButton(0, 0, 20, 20, 11, 0, button -> {
+            this.deleteButton = new IconButton(0, 0, 20, 20, 100, 0, ConfigScreen.ICONS_LOCATION, button -> {
                 EditListScreen.this.values.remove(holder);
                 list.removeEntry(this);
                 EditListScreen.this.clearInvalid(this);
@@ -203,7 +245,7 @@ public class EditListScreen extends Screen {
 
         @Override
         public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
-            EditListScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(this.holder.getValue()), entryLeft + 5, entryTop + 6, 0xFFFFFF);
+//            EditListScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(this.holder.getValue()), entryLeft + 5, entryTop + 6, 0xFFFFFF);
             this.textField.x = entryLeft;
             this.textField.y = entryTop + 1;
             this.textField.render(poseStack, mouseX, mouseY, partialTicks);
@@ -220,14 +262,16 @@ public class EditListScreen extends Screen {
         @Override
         public List<? extends NarratableEntry> narratables() {
             return ImmutableList.of(new NarratableEntry() {
+                @Override
                 public NarratableEntry.NarrationPriority narrationPriority() {
                     return NarratableEntry.NarrationPriority.HOVERED;
                 }
 
+                @Override
                 public void updateNarration(NarrationElementOutput output) {
-                    output.add(NarratedElementType.TITLE, EditListEntry.this.holder.getValue());
+                    output.add(NarratedElementType.TITLE, EditEntry.this.holder.getValue());
                 }
-            }, EditListEntry.this.textField, EditListEntry.this.deleteButton);
+            }, EditEntry.this.textField, EditEntry.this.deleteButton);
         }
     }
 }

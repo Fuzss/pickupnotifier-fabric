@@ -2,55 +2,70 @@ package com.mrcrayfish.configured.client.gui.widget;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mrcrayfish.configured.Configured;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
 
 /**
- * Author: MrCrayfish
+ * a copy of {@link net.minecraft.client.gui.components.ImageButton} with mutable texture coordinates
  */
 public class IconButton extends Button {
-    public static final ResourceLocation ICONS_LOCATION = new ResourceLocation(Configured.MODID, "textures/gui/icons.png");
+    private final ResourceLocation resourceLocation;
+    private int xTexStart;
+    private int yTexStart;
+    private final int yDiffTex;
+    private final int textureWidth;
+    private final int textureHeight;
 
-    private final int textureX;
-    private final int textureY;
-
-    public IconButton(int x, int y, int width, int height, int textureX, int textureY, Button.OnPress onPress) {
-        this(x, y, width, height, textureX, textureY, onPress, Button.NO_TOOLTIP);
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, ResourceLocation resourceLocation, Button.OnPress onPress) {
+        this(x, y, width, height, xTexStart, yTexStart, height, resourceLocation, 256, 256, onPress);
     }
 
-    public IconButton(int x, int y, int width, int height, int textureX, int textureY, Button.OnPress onPress, Button.OnTooltip onTooltip) {
-        super(x, y, width, height, TextComponent.EMPTY, onPress, onTooltip);
-        this.textureX = textureX;
-        this.textureY = textureY;
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, int yDiffTex, ResourceLocation resourceLocation, Button.OnPress onPress) {
+        this(x, y, width, height, xTexStart, yTexStart, yDiffTex, resourceLocation, 256, 256, onPress);
+    }
+
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, int yDiffTex, ResourceLocation resourceLocation, int textureWidth, int textureHeight, Button.OnPress onPress) {
+        this(x, y, width, height, xTexStart, yTexStart, yDiffTex, resourceLocation, textureWidth, textureHeight, onPress, TextComponent.EMPTY);
+    }
+
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, int yDiffTex, ResourceLocation resourceLocation, int textureWidth, int textureHeight, Button.OnPress onPress, Component component) {
+        this(x, y, width, height, xTexStart, yTexStart, yDiffTex, resourceLocation, textureWidth, textureHeight, onPress, NO_TOOLTIP, component);
+    }
+
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, ResourceLocation resourceLocation, Button.OnPress onPress, Button.OnTooltip onTooltip) {
+        this(x, y, width, height, xTexStart, yTexStart, height, resourceLocation, 256, 256, onPress, onTooltip, TextComponent.EMPTY);
+    }
+
+    public IconButton(int x, int y, int width, int height, int xTexStart, int yTexStart, int yDiffTex, ResourceLocation resourceLocation, int textureWidth, int textureHeight, Button.OnPress onPress, Button.OnTooltip onTooltip, Component component) {
+        super(x, y, width, height, component, onPress, onTooltip);
+        this.textureWidth = textureWidth;
+        this.textureHeight = textureHeight;
+        this.xTexStart = xTexStart;
+        this.yTexStart = yTexStart;
+        this.yDiffTex = yDiffTex;
+        this.resourceLocation = resourceLocation;
+    }
+
+    public void setPosition(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public void setTexture(int textureX, int textureY) {
+        this.xTexStart = textureX;
+        this.yTexStart = textureY;
     }
 
     @Override
     public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-        Minecraft minecraft = Minecraft.getInstance();
-        Font font = minecraft.font;
-        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-        RenderSystem.setShaderTexture(0, WIDGETS_LOCATION);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, this.alpha);
-        int vOffset = this.getYImage(this.isHovered());
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        RenderSystem.setShaderTexture(0, this.resourceLocation);
         RenderSystem.enableDepthTest();
-        this.blit(poseStack, this.x, this.y, 0, 46 + vOffset * 20, this.width / 2, this.height);
-        this.blit(poseStack, this.x + this.width / 2, this.y, 200 - this.width / 2, 46 + vOffset * 20, this.width / 2, this.height);
-        this.renderBg(poseStack, minecraft, mouseX, mouseY);
-        int color = -1;
-        drawCenteredString(poseStack, font, this.getMessage(), this.x + this.width / 2, this.y + (this.height - 8) / 2, color | Mth.ceil(this.alpha * 255.0F) << 24);
-        RenderSystem.setShaderTexture(0, ICONS_LOCATION);
-        float brightness = this.active ? 1.0F : 0.5F;
-        RenderSystem.setShaderColor(brightness, brightness, brightness, this.alpha);
-        blit(poseStack, this.x + 5, this.y + 4, this.getBlitOffset(), this.textureX, this.textureY, 11, 11, 32, 32);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, this.alpha);
+        int index = this.getYImage(this.isHovered());
+        blit(poseStack, this.x, this.y, this.xTexStart, this.yTexStart + index * this.yDiffTex, this.width, this.height, this.textureWidth, this.textureHeight);
         if (this.isHovered()) {
             this.renderToolTip(poseStack, mouseX, mouseY);
         }

@@ -14,7 +14,7 @@ println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getPro
 
 ext.mcversion = "${minecraftVersion}"
 ext.modversion = "${modVersion}"
-version = "v${project.modversion}-${project.mcversion}"
+version = "v${project.modversion}-${project.mcversion}-${project.curseModloader}"
 group = "${modGroup}"
 ext.modid = "${modId}"
 ext.modauthor = "${modAuthor}"
@@ -36,7 +36,7 @@ dependencies {
 	modImplementation "net.fabricmc:fabric-loader:${project.fabricVersion}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabricApiVersion}"
 	modImplementation "com.terraformersmc:modmenu:2.0.12"
-
+	include "com.terraformersmc:modmenu:2.0.12"
 	implementation 'com.electronwill.night-config:core:3.6.3'
 	implementation 'com.electronwill.night-config:toml:3.6.3'
 	include 'com.electronwill.night-config:core:3.6.3'
@@ -123,6 +123,8 @@ def createJarTask(def name, def type, def sources) {
 
 		from sources
 		from rootProject.file("LICENSE")
+		from rootProject.file("FORGE-LICENSE")
+		from rootProject.file("CONFIGURED-LICENSE")
 		from rootProject.file("CHANGELOG.md")
 		classifier type
 
@@ -135,6 +137,8 @@ def createJarTask(def name, def type, def sources) {
 jar {
 
 	from rootProject.file("LICENSE")
+	from rootProject.file("FORGE-LICENSE")
+	from rootProject.file("CONFIGURED-LICENSE")
 	from rootProject.file("CHANGELOG.md")
 	manifest { attributes(project.jarAttributes) }
 	group 'jar'
@@ -163,7 +167,7 @@ curseforge {
 		releaseType = project.findProperty('curseReleaseType')
 		addGameVersion project.findProperty('curseModloader')
 		project.findProperty('curseProjectVersion').replaceAll(" ", "").split(",").each { version -> addGameVersion version }
-		mainArtifact jar
+		mainArtifact remapJar
 		addArtifact sourceJar
 		relations { embeddedLibrary 'fabric-api' }
 	}
@@ -199,7 +203,7 @@ task copyJarToDir(type: Copy) {
 	if (project.findProperty('copyBuildJar').toBoolean()) {
 
 		// shortcut for jar.outputs.files
-		from jar
+		from remapJar
 //        from shadowJar
 		into project.findProperty('buildJarOutputDir')
 		// add build number to be able to distinguish jars when testing thorough official launcher
