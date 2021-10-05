@@ -30,7 +30,6 @@ public class C2SAskPermissionsMessage implements Message {
 
         @Override
         public void handle(C2SAskPermissionsMessage packet, Player player, Object gameInstance) {
-
             // this technically isn't necessary as the client is fully aware of its own permission level on the server
             // it's still here so there can be e.g. a config option for denying clients to edit server configs in the future
             if (player.hasPermissions(((MinecraftServer) gameInstance).getOperatorUserPermissionLevel())) {

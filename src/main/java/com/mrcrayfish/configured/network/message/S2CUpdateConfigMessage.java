@@ -1,6 +1,7 @@
 package com.mrcrayfish.configured.network.message;
 
 import fuzs.puzzleslib.network.message.Message;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.config.ConfigTracker;
@@ -41,8 +42,11 @@ public class S2CUpdateConfigMessage implements Message {
 
         @Override
         public void handle(S2CUpdateConfigMessage packet, Player player, Object gameInstance) {
-
-            Optional.ofNullable(ConfigTracker.INSTANCE.fileMap().get(packet.fileName)).ifPresent(config -> config.acceptSyncedConfig(packet.fileData));
+            // should never happen, but just to be safe as there would be a classcastexception otherwise
+            // (class com.electronwill.nightconfig.core.SimpleCommentedConfig cannot be cast to class com.electronwill.nightconfig.core.file.CommentedFileConfig)
+            if (!Minecraft.getInstance().isLocalServer()) {
+                Optional.ofNullable(ConfigTracker.INSTANCE.fileMap().get(packet.fileName)).ifPresent(config -> config.acceptSyncedConfig(packet.fileData));
+            }
         }
     }
 }

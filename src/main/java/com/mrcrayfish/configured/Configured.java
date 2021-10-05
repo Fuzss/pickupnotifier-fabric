@@ -39,7 +39,7 @@ public class Configured implements ModInitializer {
     }
 
     private void initTestConfigs() {
-        if (ModLoaderEnvironment.isDevelopmentEnvironment()) {
+        if (true || ModLoaderEnvironment.isDevelopmentEnvironment()) {
             FileUtils.getOrCreateDirectory(ModLoaderEnvironment.getConfigDir().resolve(MODID), String.format("%s config directory", MODID));
             ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.CLIENT, TestConfig.CLIENT_SPEC, String.format("%s%s%s-%s.toml", MODID, File.separator, MODID, ModConfig.Type.CLIENT.extension()));
             ForgeConfigs.registerConfig(PickUpNotifier.MODID, ModConfig.Type.COMMON, TestConfig.COMMON_SPEC, String.format("%s-%s.toml", MODID, ModConfig.Type.COMMON.extension()));

@@ -28,7 +28,6 @@ public class S2CGrantPermissionsMessage implements Message {
 
         @Override
         public void handle(S2CGrantPermissionsMessage packet, Player player, Object gameInstance) {
-
             if (((Minecraft) gameInstance).screen instanceof SelectConfigScreen screen) {
                 screen.setServerPermissions();
             }

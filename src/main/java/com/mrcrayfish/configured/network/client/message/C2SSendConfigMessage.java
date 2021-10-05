@@ -1,5 +1,7 @@
 package com.mrcrayfish.configured.network.client.message;
 
+import com.electronwill.nightconfig.core.CommentedConfig;
+import com.electronwill.nightconfig.toml.TomlFormat;
 import com.mrcrayfish.configured.Configured;
 import com.mrcrayfish.configured.network.message.S2CUpdateConfigMessage;
 import fuzs.puzzleslib.network.NetworkHandler;
@@ -9,8 +11,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.fml.config.ConfigTracker;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 
-import java.util.Optional;
+import java.io.ByteArrayInputStream;
 
 public class C2SSendConfigMessage implements Message {
 
@@ -46,12 +50,20 @@ public class C2SSendConfigMessage implements Message {
 
         @Override
         public void handle(C2SSendConfigMessage packet, Player player, Object gameInstance) {
-
             final MinecraftServer server = (MinecraftServer) gameInstance;
             if (server.isDedicatedServer() && player.hasPermissions(server.getOperatorUserPermissionLevel())) {
-                Optional.ofNullable(ConfigTracker.INSTANCE.fileMap().get(packet.fileName)).ifPresent(config -> config.acceptSyncedConfig(packet.fileData));
-                NetworkHandler.INSTANCE.sendToAllExcept(new S2CUpdateConfigMessage(packet.fileName, packet.fileData), (ServerPlayer) player);
-                Configured.LOGGER.info("Server config has been updated by {}", player.getDisplayName());
+                final ModConfig config = ConfigTracker.INSTANCE.fileMap().get(packet.fileName);
+                if (config != null) {
+                    // this is basically ModConfig::acceptSyncedConfig which we can't use as the config sent from a client only exists in memory,
+                    // but we need to update the actual file config on the server
+                    final CommentedConfig receivedConfig = TomlFormat.instance().createParser().parse(new ByteArrayInputStream(packet.fileData));
+                    config.getConfigData().putAll(receivedConfig);
+                    ModConfigEvent.RELOADING.invoker().onModConfigReloading(config);
+                    NetworkHandler.INSTANCE.sendToAllExcept(new S2CUpdateConfigMessage(packet.fileName, packet.fileData), (ServerPlayer) player);
+                    Configured.LOGGER.info("Server config has been updated by {}", player.getDisplayName().getString());
+                } else {
+                    Configured.LOGGER.error("Failed to update server config with data received from {}", player.getDisplayName().getString());
+                }
             }
         }
     }
