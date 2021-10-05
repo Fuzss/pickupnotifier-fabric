@@ -245,7 +245,6 @@ public class EditListScreen extends Screen {
 
         @Override
         public void render(PoseStack poseStack, int index, int entryTop, int entryLeft, int rowWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float partialTicks) {
-//            EditListScreen.this.minecraft.font.drawShadow(poseStack, new TextComponent(this.holder.getValue()), entryLeft + 5, entryTop + 6, 0xFFFFFF);
             this.textField.x = entryLeft;
             this.textField.y = entryTop + 1;
             this.textField.render(poseStack, mouseX, mouseY, partialTicks);

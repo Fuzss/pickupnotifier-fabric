@@ -459,22 +459,22 @@ public abstract class ConfigScreen extends Screen {
     @SuppressWarnings("unchecked")
     private ListEntry<?> makeListEntry(IEntryData entryData, String searchHighlight, Object value) throws RuntimeException {
         if (value instanceof Boolean) {
-            return new ListEntry<>((EntryData.ConfigEntryData<List<Boolean>>) entryData, searchHighlight, Boolean.class, v -> switch (v.toLowerCase(Locale.ROOT)) {
+            return new ListEntry<>((EntryData.ConfigEntryData<List<Boolean>>) entryData, searchHighlight, "Boolean", v -> switch (v.toLowerCase(Locale.ROOT)) {
                 case "true" -> true;
                 case "false" -> false;
                 // is caught when editing
                 default -> throw new IllegalArgumentException("unable to convert boolean value");
             });
         } else if (value instanceof Integer) {
-            return new ListEntry<>((EntryData.ConfigEntryData<List<Integer>>) entryData, searchHighlight, Integer.class, Integer::parseInt);
+            return new ListEntry<>((EntryData.ConfigEntryData<List<Integer>>) entryData, searchHighlight, "Integer", Integer::parseInt);
         } else if (value instanceof Double) {
-            return new ListEntry<>((EntryData.ConfigEntryData<List<Double>>) entryData, searchHighlight, Double.class, Double::parseDouble);
+            return new ListEntry<>((EntryData.ConfigEntryData<List<Double>>) entryData, searchHighlight, "Double", Double::parseDouble);
         } else if (value instanceof Long) {
-            return new ListEntry<>((EntryData.ConfigEntryData<List<Long>>) entryData, searchHighlight, Long.class, Long::parseLong);
+            return new ListEntry<>((EntryData.ConfigEntryData<List<Long>>) entryData, searchHighlight, "Long", Long::parseLong);
         } else if (value instanceof Enum<?>) {
             return new EnumListEntry((EntryData.ConfigEntryData<List<Enum<?>>>) entryData, searchHighlight, (Class<Enum<?>>) value.getClass());
         } else if (value instanceof String) {
-            return new ListEntry<>((EntryData.ConfigEntryData<List<String>>) entryData, searchHighlight, String.class, s -> {
+            return new ListEntry<>((EntryData.ConfigEntryData<List<String>>) entryData, searchHighlight, "String", s -> {
                 if (s.isEmpty()) {
                     throw new IllegalArgumentException("string must not be empty");
                 }
@@ -657,16 +657,7 @@ public abstract class ConfigScreen extends Screen {
                 ConfigScreen.this.searchTextField.setValue("");
                 ConfigScreen.this.searchTextField.setFocus(false);
                 ConfigScreen.this.minecraft.setScreen(data.getScreen());
-            }) {
-//                @Override
-//                public void renderButton(PoseStack poseStack, int mouseX, int mouseY, float partialTicks) {
-//                    super.renderButton(poseStack, mouseX, mouseY, partialTicks);
-//                    // yellow when hovered
-//                    int color = this.isHovered() ? 16777045 : 16777215;
-//                    // just render above the old one as transparency is no concern
-//                    drawCenteredString(poseStack, ConfigScreen.this.font, this.getMessage(), this.x + this.width / 2, this.y + (this.height - 8) / 2, color);
-//                }
-            };
+            });
         }
 
         @Override
@@ -918,17 +909,17 @@ public abstract class ConfigScreen extends Screen {
     private abstract class EditScreenEntry<T> extends ConfigEntry<T> {
         private final Button button;
 
-        public EditScreenEntry(EntryData.ConfigEntryData<T> configEntryData, String searchHighlight, Class<?> type) {
+        public EditScreenEntry(EntryData.ConfigEntryData<T> configEntryData, String searchHighlight, String type) {
             super(configEntryData, searchHighlight);
             this.button = new Button(10, 5, 44, 20, new TranslatableComponent("configured.gui.edit"), button -> {
                 // safety precaution for dealing with lists
                 try {
-                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(type.getSimpleName(), configEntryData.getCurrentValue(), configEntryData.getValueSpec(), currentValue -> {
+                    ConfigScreen.this.minecraft.setScreen(this.makeEditScreen(type, configEntryData.getCurrentValue(), configEntryData.getValueSpec(), currentValue -> {
                         configEntryData.setCurrentValue(currentValue);
                         this.onConfigValueChanged(currentValue, false);
                     }));
                 } catch (RuntimeException e) {
-                    Configured.LOGGER.warn("Unable to handle list entry containing class type {}", type.getSimpleName(), e);
+                    Configured.LOGGER.warn("Unable to handle list entry containing class type {}", type, e);
                     button.active = false;
                 }
             });
@@ -952,7 +943,7 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     private class EnumEntry extends EditScreenEntry<Enum<?>> {
         public EnumEntry(EntryData.ConfigEntryData<Enum<?>> configEntryData, String searchHighlight) {
-            super(configEntryData, searchHighlight, Enum.class);
+            super(configEntryData, searchHighlight, "Enum");
         }
 
         @Override
@@ -969,7 +960,7 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     private class StringEntry extends EditScreenEntry<String> {
         public StringEntry(EntryData.ConfigEntryData<String> configEntryData, String searchHighlight) {
-            super(configEntryData, searchHighlight, String.class);
+            super(configEntryData, searchHighlight, "String");
         }
 
         @Override
@@ -987,7 +978,7 @@ public abstract class ConfigScreen extends Screen {
     private class ListEntry<T> extends EditScreenEntry<List<T>> {
         private final Function<String, T> fromString;
 
-        public ListEntry(EntryData.ConfigEntryData<List<T>> configEntryData, String searchHighlight, Class<T> type, Function<String, T> fromString) {
+        public ListEntry(EntryData.ConfigEntryData<List<T>> configEntryData, String searchHighlight, String type, Function<String, T> fromString) {
             super(configEntryData, searchHighlight, type);
             this.fromString = fromString;
         }
@@ -1028,7 +1019,7 @@ public abstract class ConfigScreen extends Screen {
         @SuppressWarnings("unchecked")
         public <T extends Enum<T>> EnumListEntry(EntryData.ConfigEntryData<List<Enum<?>>> configEntryData, String searchHighlight, Class<Enum<?>> clazz) {
             // enums are read as strings from file
-            super(configEntryData, searchHighlight, clazz, v -> Enum.valueOf((Class<T>) clazz, v));
+            super(configEntryData, searchHighlight, "Enum", v -> Enum.valueOf((Class<T>) clazz, v));
         }
 
         @Override
@@ -1040,7 +1031,7 @@ public abstract class ConfigScreen extends Screen {
     @Environment(EnvType.CLIENT)
     private class DangerousListEntry extends ListEntry<String> {
         public DangerousListEntry(EntryData.ConfigEntryData<List<String>> configEntryData, String searchHighlight) {
-            super(configEntryData, searchHighlight, String.class, s -> {
+            super(configEntryData, searchHighlight, "String", s -> {
                 if (s.isEmpty()) {
                     throw new IllegalArgumentException("string must not be empty");
                 }
@@ -1050,6 +1041,7 @@ public abstract class ConfigScreen extends Screen {
 
         @Override
         Screen makeEditScreen(String type, List<String> currentValue, ForgeConfigSpec.ValueSpec valueSpec, Consumer<List<String>> onSave) {
+            // TODO this needs to be reworked to allow the user to choose a data type as always returning a string list is not safe
             // displays a warning screen when editing a list of unknown type before allowing the edit
             return ScreenUtil.makeConfirmationScreen(result -> {
                 if (result) {
