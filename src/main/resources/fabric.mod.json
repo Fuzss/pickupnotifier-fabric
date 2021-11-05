@@ -21,7 +21,7 @@
     "main": [
       "${mainEntryPoint}",
       "net.minecraftforge.ForgeConfigs",
-      "com.mrcrayfish.configured.Configured"
+      "fuzs.configmenusforge.ConfigMenusForge"
     ],
     "client": [
       "${clientEntryPoint}",

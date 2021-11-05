@@ -1,16 +1,15 @@
 package fuzs.pickupnotifier.compat;
 
-import com.mrcrayfish.configured.client.ClientHandler;
-import com.terraformersmc.modmenu.api.ConfigScreenFactory;
+import fuzs.configmenusforge.client.handler.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 import fuzs.pickupnotifier.PickUpNotifier;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.resources.ResourceLocation;
 
 public class ModMenuMenu implements ModMenuApi {
 
     @Override
-    public ConfigScreenFactory<Screen> getModConfigScreenFactory() {
-        // new ResourceLocation("textures/block/honeycomb_block.png")
-        return lastScreen -> ClientHandler.createConfigScreen(PickUpNotifier.MODID).apply(lastScreen);
+    public com.terraformersmc.modmenu.api.ConfigScreenFactory<Screen> getModConfigScreenFactory() {
+        return lastScreen -> ConfigScreenFactory.createConfigScreen(PickUpNotifier.MODID, new ResourceLocation("textures/block/cobblestone.png")).orElse(screen -> null).apply(lastScreen);
     }
 }
