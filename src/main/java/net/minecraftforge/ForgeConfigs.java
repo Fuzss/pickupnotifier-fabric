@@ -61,9 +61,7 @@ public class ForgeConfigs implements ModInitializer {
 
     private void registerCallbacks() {
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-            if (!dedicated) {
-                ConfigCommand.register(dispatcher);
-            }
+            if (!dedicated) ConfigCommand.register(dispatcher);
         });
         ServerLifecycleEvents.SERVER_STARTING.register((MinecraftServer server) -> ConfigTracker.INSTANCE.loadConfigs(ModConfig.Type.SERVER, getServerConfigPath(server)));
         ServerLifecycleEvents.SERVER_STOPPED.register((MinecraftServer server) -> ConfigTracker.INSTANCE.unloadConfigs(ModConfig.Type.SERVER, getServerConfigPath(server)));

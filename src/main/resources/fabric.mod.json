@@ -10,35 +10,30 @@
   ],
   "contact": {
     "homepage": "${modPageUrl}",
-    "issues": "${modIssueUrl}"
+    "issues": "${modIssueUrl}",
+    "sources": "${modSourceUrl}"
   },
 
   "license": "Mozilla Public License 2.0",
-  "icon": "avatar.png",
+  "icon": "mod_logo.png",
 
   "environment": "*",
   "entrypoints": {
     "main": [
-      "${mainEntryPoint}",
-      "net.minecraftforge.ForgeConfigs",
-      "fuzs.configmenusforge.ConfigMenusForge"
+      "${mainEntryPoint}"
     ],
     "client": [
-      "${clientEntryPoint}",
-      "net.minecraftforge.client.ForgeConfigsClient"
-    ],
-    "modmenu": [
-      "fuzs.pickupnotifier.compat.ModMenuMenu"
+      "${clientEntryPoint}"
     ]
   },
   "mixins": [
-    "${modId}.mixins.json",
-    "forgeconfigs.mixins.json"
+    "${modId}.mixins.json"
   ],
 
   "depends": {
     "fabricloader": ">=${minFabricVersion}",
-    "fabric": "*",
+    "fabric": ">=${minFabricApiVersion}",
+    "puzzleslib": ">=${minPuzzlesVersion}",
     "minecraft": ">=${minMinecraftVersion} <${nextMinecraftVersion}",
     "java": ">=16"
   }

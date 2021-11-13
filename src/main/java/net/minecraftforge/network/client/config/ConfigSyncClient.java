@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public class ConfigSyncClient {
-
     public static final ConfigSyncClient INSTANCE = new ConfigSyncClient(ConfigTracker.INSTANCE);
     private final ConfigTracker tracker;
 
@@ -21,12 +20,9 @@ public class ConfigSyncClient {
     }
 
     public void clientInit() {
-
         ClientLoginNetworking.registerGlobalReceiver(ConfigSync.SYNC_CONFIGS_CHANNEL, (client, handler, buf, listenerAdder) -> {
-
             final String fileName = this.receiveSyncedConfig(buf);
             ConfigSync.LOGGER.debug(ConfigSync.FMLHSMARKER, "Received config sync for {} from server", fileName);
-
             FriendlyByteBuf response = PacketByteBufs.create();
             response.writeUtf(fileName);
             ConfigSync.LOGGER.debug(ConfigSync.FMLHSMARKER, "Sent config sync for {} to server", fileName);
