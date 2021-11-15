@@ -112,10 +112,10 @@ javadoc {
 	options.encoding = "UTF-8"
 }
 
-//java {
-//	withSourcesJar()
+java {
+	withSourcesJar()
 //	withJavadocJar()
-//}
+}
 
 ext.jarAttributes = [
 		"Specification-Title"       : project.modid,
@@ -158,10 +158,11 @@ curseforge {
 		addGameVersion project.findProperty('projectLoader')
 		project.findProperty('curseProjectVersion').replaceAll(" ", "").split(",").each { version -> addGameVersion version }
 		mainArtifact remapJar
-		addArtifact remapSourcesJar
+		addArtifact sourcesJar
 		relations {
 			requiredDependency 'fabric-api'
 			requiredDependency 'puzzles-lib-fabric'
+			requiredDependency 'forge-config-api-port-fabric'
 		}
 	}
 	options {
