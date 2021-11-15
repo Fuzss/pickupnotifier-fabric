@@ -23,6 +23,7 @@ ext.mainentrypoint = "${project.group}".concat(".${rootProject.name}")
 ext.cliententrypoint = "${project.group}".concat(".client.${rootProject.name}Client")
 
 repositories {
+	mavenLocal()
 	maven { url = "https://maven.terraformersmc.com/releases/" }
 	maven { url = "https://cursemaven.com" }
 	maven { url "https://maven.shedaniel.me" }
@@ -34,13 +35,15 @@ dependencies {
 
 	modImplementation "net.fabricmc:fabric-loader:${project.fabricVersion}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabricApiVersion}"
+//	include "net.fabricmc.fabric-api:fabric-api:${project.fabricApiVersion}", fabricApi.module("fabric-command-api-v1", project.fabricApiVersion)
 	modImplementation "com.terraformersmc:modmenu:2.0.12"
-	implementation 'com.electronwill.night-config:core:3.6.3'
-	implementation 'com.electronwill.night-config:toml:3.6.3'
-	include 'com.electronwill.night-config:core:3.6.3'
-	include 'com.electronwill.night-config:toml:3.6.3'
-	modCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:6.1.329"
-	modRuntimeOnly "me.shedaniel:RoughlyEnoughItems-fabric:6.1.329"
+	modImplementation "fuzs.puzzleslib:PuzzlesLib:v2.0.0-1.17.1-Fabric"
+//	implementation 'com.electronwill.night-config:core:3.6.3'
+//	implementation 'com.electronwill.night-config:toml:3.6.3'
+//	include 'com.electronwill.night-config:core:3.6.3'
+//	include 'com.electronwill.night-config:toml:3.6.3'
+//	modCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:6.1.329"
+//	modRuntimeOnly "me.shedaniel:RoughlyEnoughItems-fabric:6.1.329"
 }
 
 processResources {
@@ -104,6 +107,15 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 16
 }
 
+javadoc {
+	options.encoding = "UTF-8"
+}
+
+java {
+	withSourcesJar()
+	withJavadocJar()
+}
+
 ext.jarAttributes = [
 		"Specification-Title"       : project.modid,
 		"Specification-Version"     : project.modversion,
@@ -117,38 +129,45 @@ ext.jarAttributes = [
 		"MixinConfigs"              : "META-INF/${project.modid}.mixins.json"
 ]
 
-def createJarTask(def name, def type, def sources) {
-	return tasks.create(name, Jar) {
-		from sources
-		from rootProject.file("LICENSE")
-		from rootProject.file("CHANGELOG.md")
-		classifier type
-		manifest { attributes(project.jarAttributes) }
-		dependsOn classes
-		group 'jar'
-	}
-}
+//jar {
+//	from rootProject.file("LICENSE")
+//	from rootProject.file("CHANGELOG.md")
+//	manifest { attributes(project.jarAttributes) }
+//	group 'jar'
+//}
+//
+//sourcesJar {
+//	from rootProject.file("LICENSE")
+//	from rootProject.file("CHANGELOG.md")
+//	manifest { attributes(project.jarAttributes) }
+//	group 'jar'
+//}
+//
+//javadocJar {
+//	from rootProject.file("LICENSE")
+//	from rootProject.file("CHANGELOG.md")
+//	manifest { attributes(project.jarAttributes) }
+//	group 'jar'
+//}
 
-jar {
-	from rootProject.file("LICENSE")
-	from rootProject.file("CHANGELOG.md")
-	manifest { attributes(project.jarAttributes) }
-	group 'jar'
+tasks.withType(Jar).configureEach {
+	it.from rootProject.file("LICENSE")
+	it.from rootProject.file("CHANGELOG.md")
+	it.manifest { attributes(project.jarAttributes) }
+	it.group 'jar'
 }
-
-createJarTask("sourcesJar", "sources", sourceSets.main.allSource)
-createJarTask("javadocJar", "javadoc", javadoc)
 
 publishing {
 	publications {
 		mavenJava (MavenPublication) {
-			artifact(jar) {
-				builtBy remapJar
-			}
-			artifact(sourcesJar) {
-				builtBy remapSourcesJar
-			}
-			artifact javadocJar
+			from components.java
+//			artifact(jar) {
+//				builtBy remapJar
+//			}
+//			artifact(sourcesJar) {
+//				builtBy remapSourcesJar
+//			}
+//			artifact javadocJar
 		}
 	}
 }
@@ -167,7 +186,7 @@ curseforge {
 		addGameVersion project.findProperty('projectLoader')
 		project.findProperty('curseProjectVersion').replaceAll(" ", "").split(",").each { version -> addGameVersion version }
 		mainArtifact remapJar
-		addArtifact sourcesJar
+		addArtifact remapSourcesJar
 		relations {
 			requiredDependency 'fabric-api'
 			requiredDependency 'puzzles-lib'
@@ -186,7 +205,7 @@ curseforge {
 
 //task publishModrinth (type: TaskModrinthUpload){
 //	token = System.getenv("modrinthApiToken")
-//	projectId = 'yoJJjRRE'
+//	projectId = '0'
 //	versionNumber = project.version
 //	versionName = project.archivesBaseName
 //	releaseType = 'release'
@@ -198,8 +217,7 @@ curseforge {
 task copyJarToDir(type: Copy) {
 	onlyIf { project.hasProperty('buildJarOutputDir') && project.hasProperty('uniqueBuildNumber') }
 	if (project.findProperty('copyBuildJar').toBoolean()) {
-		// shortcut for jar.outputs.files
-		from jar
+		from remapJar
 		into project.findProperty('buildJarOutputDir')
 		// add build number to be able to distinguish jars when testing thorough official launcher
 		// build number is stored in global gradle.properties
