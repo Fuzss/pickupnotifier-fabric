@@ -3,6 +3,7 @@
   "minVersion": "0.8",
   "compatibilityLevel": "JAVA_16",
   "package": "fuzs.pickupnotifier.mixin",
+  "refmap": "META-INF/pickupnotifier.refmap.json",
   "mixins": [
     "ItemEntityMixin"
   ],

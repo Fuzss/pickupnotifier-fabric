@@ -1,7 +1,6 @@
 package fuzs.pickupnotifier.handler;
 
 import fuzs.pickupnotifier.PickUpNotifier;
-import fuzs.puzzleslib.network.NetworkHandler;
 import fuzs.pickupnotifier.network.message.S2CTakeItemMessage;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -13,7 +12,7 @@ public class ItemPickupHandler {
 
     public void onEntityItemPickup(final Player player, final ItemEntity item) {
 
-        if (PickUpNotifier.CONFIG.server().general().partialPickUps && !item.isRemoved()) {
+        if (PickUpNotifier.CONFIG.server().partialPickUps && !item.isRemoved()) {
 
             // requires additional checks as it might actually not be possible for the item to be picked up
             if (!item.hasPickUpDelay() && (item.getOwner() == null || item.getOwner().equals(player.getUUID()))) {
@@ -34,7 +33,7 @@ public class ItemPickupHandler {
 
                 if (itemAmount > 0) {
 
-                    NetworkHandler.INSTANCE.sendTo(new S2CTakeItemMessage(item.getId(), itemAmount), (ServerPlayer) player);
+                    PickUpNotifier.NETWORK.sendTo(new S2CTakeItemMessage(item.getId(), itemAmount), (ServerPlayer) player);
                 }
             }
         }

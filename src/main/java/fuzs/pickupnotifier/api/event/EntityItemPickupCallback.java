@@ -7,7 +7,6 @@ import net.minecraft.world.entity.player.Player;
 
 @FunctionalInterface
 public interface EntityItemPickupCallback {
-
     Event<EntityItemPickupCallback> EVENT = EventFactory.createArrayBacked(EntityItemPickupCallback.class, listeners -> (player, item) -> {
 
         for (EntityItemPickupCallback event : listeners) {
@@ -23,5 +22,4 @@ public interface EntityItemPickupCallback {
      * @param item   the item entity being picked up
      */
     void onEntityItemPickup(Player player, ItemEntity item);
-
 }

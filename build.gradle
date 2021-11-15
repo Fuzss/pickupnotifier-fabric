@@ -1,6 +1,5 @@
 plugins {
-
-	id 'fabric-loom' version '0.9-SNAPSHOT'
+	id 'fabric-loom' version '0.10-SNAPSHOT'
 	id "com.matthewprenger.cursegradle" version "1.4.0"
 	id "com.modrinth.minotaur" version "1.1.0"
 	id 'maven-publish'
@@ -14,36 +13,42 @@ println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getPro
 
 ext.mcversion = "${minecraftVersion}"
 ext.modversion = "${modVersion}"
-version = "v${project.modversion}-${project.mcversion}-${project.curseModloader}"
+version = "v${project.modversion}-${project.mcversion}-${project.projectLoader}"
 group = "${modGroup}"
 ext.modid = "${modId}"
 ext.modauthor = "${modAuthor}"
 ext.nextmcversion = getNextVersion("${minMinecraftVersion}")
+ext.puzzlesversion = "${puzzlesVersion.substring(1, puzzlesVersion.indexOf("-"))}"
 ext.mainentrypoint = "${project.group}".concat(".${rootProject.name}")
 ext.cliententrypoint = "${project.group}".concat(".client.${rootProject.name}Client")
 
 repositories {
-
+	mavenLocal()
 	maven { url = "https://maven.terraformersmc.com/releases/" }
 	maven { url = "https://cursemaven.com" }
 }
 
 dependencies {
-
 	minecraft "com.mojang:minecraft:${project.minecraftVersion}"
 	mappings minecraft.officialMojangMappings()
 
 	modImplementation "net.fabricmc:fabric-loader:${project.fabricVersion}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabricApiVersion}"
 	modImplementation "com.terraformersmc:modmenu:2.0.12"
-	include "com.terraformersmc:modmenu:2.0.12"
-	implementation 'com.electronwill.night-config:core:3.6.3'
-	implementation 'com.electronwill.night-config:toml:3.6.3'
-	include 'com.electronwill.night-config:core:3.6.3'
-	include 'com.electronwill.night-config:toml:3.6.3'
+
+	// from local maven
+	modImplementation "fuzs.puzzleslib:PuzzlesLib:${puzzlesVersion}"
+	// try use curse maven when local maven is not available
+	// file id is end of url (7 digits usually) when on file details page on curse
+//    modImplementation "curse.maven:puzzleslib-<project-id>:<file-id>"
+}
+
+minecraft {
+	refmapName "META-INF/${project.modid}.refmap.json"
 }
 
 processResources {
+	duplicatesStrategy DuplicatesStrategy.INCLUDE
 
     // this will ensure that this task is redone when the versions change.
     inputs.property "modId", 					project.modid
@@ -52,39 +57,41 @@ processResources {
     inputs.property "modGroup", 				project.group
     inputs.property "modPageUrl", 				"${modPageUrl}"
     inputs.property "modIssueUrl", 				"${modIssueUrl}"
+	inputs.property "modSourceUrl", 			"${modSourceUrl}"
     inputs.property "modDescription", 			"${modDescription}"
     inputs.property "modAuthor", 				project.modauthor
     inputs.property "minFabricVersion", 		"${minFabricVersion}"
+	inputs.property "minFabricApiVersion", 		"${minFabricApiVersion}"
     inputs.property "minMinecraftVersion", 		"${minMinecraftVersion}"
     inputs.property "nextMinecraftVersion", 	project.nextmcversion
+	inputs.property "minPuzzlesVersion", 		"${minPuzzlesVersion}"
     inputs.property "packFormat", 				"${packFormat}"
 	inputs.property "mainEntryPoint", 			project.mainentrypoint
 	inputs.property "clientEntryPoint", 		project.cliententrypoint
 
 	filesMatching ('fabric.mod.json') {
-
         expand (
-
                 'modId':                project.modid,
                 'modName':              "${modName}",
                 'modVersion':           project.modversion,
                 'modGroup':             project.group,
                 'modPageUrl':           "${modPageUrl}",
                 'modIssueUrl':          "${modIssueUrl}",
+				'modSourceUrl':         "${modSourceUrl}",
                 'modAuthor':            project.modauthor,
 				'modDescription':       "${modDescription}",
                 'minFabricVersion':     "${minFabricVersion}",
+				'minFabricApiVersion':  "${minFabricApiVersion}",
                 'minMinecraftVersion':  "${minMinecraftVersion}",
                 "nextMinecraftVersion": project.nextmcversion,
+				"minPuzzlesVersion":    "${minPuzzlesVersion}",
 				"mainEntryPoint": 		project.mainentrypoint,
 				"clientEntryPoint": 	project.cliententrypoint
         )
     }
 
 	filesMatching ('pack.mcmeta') {
-
 		expand (
-
 				'modDescription':       "${modDescription}",
 				"packFormat":           "${packFormat}"
 		)
@@ -92,19 +99,25 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-
 	// ensure that the encoding is set to UTF-8, no matter what the system default is
 	// this fixes some edge cases with special characters not displaying correctly
 	// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
 	// If Javadoc is generated, this must be specified in that task too.
 	it.options.encoding = "UTF-8"
-
 	// Minecraft 1.17 (21w19a) upwards uses Java 16.
 	it.options.release = 16
 }
 
-ext.jarAttributes = [
+javadoc {
+	options.encoding = "UTF-8"
+}
 
+//java {
+//	withSourcesJar()
+//	withJavadocJar()
+//}
+
+ext.jarAttributes = [
 		"Specification-Title"       : project.modid,
 		"Specification-Version"     : project.modversion,
 		"Specification-Vendor"      : project.modauthor.toLowerCase(),
@@ -113,78 +126,55 @@ ext.jarAttributes = [
 		"Implementation-Vendor"     : project.modauthor.toLowerCase(),
 		"Implementation-Vendor-Id"  : project.group,
 		"Implementation-URL"        : "${modPageUrl}",
-		"Implementation-Timestamp"  : new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-		"MixinConfigs"              : "META-INF/${project.modid}.mixins.json"
+		"Implementation-Timestamp"  : new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
 ]
 
-def createJarTask(def name, def type, def sources) {
+tasks.withType(Jar).configureEach {
+	it.from rootProject.file("LICENSE")
+	it.from rootProject.file("CHANGELOG.md")
+	it.manifest { attributes(project.jarAttributes) }
+	it.group 'jar'
+}
 
-	return tasks.create(name, Jar) {
-
-		from sources
-		from rootProject.file("LICENSE")
-		from rootProject.file("FORGE-LICENSE")
-		from rootProject.file("CONFIGURED-LICENSE")
-		from rootProject.file("CHANGELOG.md")
-		classifier type
-
-		manifest { attributes(project.jarAttributes) }
-		dependsOn classes
-		group 'jar'
+publishing {
+	publications {
+		mavenJava (MavenPublication) {
+			from components.java
+		}
 	}
 }
-
-jar {
-
-	from rootProject.file("LICENSE")
-	from rootProject.file("FORGE-LICENSE")
-	from rootProject.file("CONFIGURED-LICENSE")
-	from rootProject.file("CHANGELOG.md")
-	manifest { attributes(project.jarAttributes) }
-	group 'jar'
-}
-
-createJarTask("deobfJar", "deobf", [sourceSets.main.output])
-createJarTask("sourceJar", "sources", sourceSets.main.allSource)
-createJarTask("javadocJar", "javadoc", javadoc)
 
 
 curseforge {
-
 	def changelogName = 'CHANGELOG.md'
 	def changelogFile = file(changelogName)
-	if (!changelogFile.canRead()) {
-
-		throw new FileNotFoundException("Could not read file ".concat(changelogName))
-	}
-
+	if (!changelogFile.canRead()) { throw new FileNotFoundException("Could not read file ".concat(changelogName)) }
 	apiKey = project.findProperty('curseApiToken')
 	project {
-
 		id = project.findProperty('curseProjectId')
 		changelogType = 'markdown'
 		changelog = changelogFile
 		releaseType = project.findProperty('curseReleaseType')
-		addGameVersion project.findProperty('curseModloader')
+		addGameVersion project.findProperty('projectLoader')
 		project.findProperty('curseProjectVersion').replaceAll(" ", "").split(",").each { version -> addGameVersion version }
 		mainArtifact remapJar
-		addArtifact sourceJar
-		relations { embeddedLibrary 'fabric-api' }
+		addArtifact remapSourcesJar
+		relations {
+			requiredDependency 'fabric-api'
+			requiredDependency 'puzzles-lib-fabric'
+		}
 	}
-
 	options {
-
 		// doesn't upload, only prints json to console
-        debug = true
+//        debug = true
 		javaVersionAutoDetect = false
 		forgeGradleIntegration = false
 	}
 }
 
 //task publishModrinth (type: TaskModrinthUpload){
-//
 //	token = System.getenv("modrinthApiToken")
-//	projectId = 'yoJJjRRE'
+//	projectId = '0'
 //	versionNumber = project.version
 //	versionName = project.archivesBaseName
 //	releaseType = 'release'
@@ -194,41 +184,23 @@ curseforge {
 //}
 
 task copyJarToDir(type: Copy) {
-
-	onlyIf {
-
-		project.hasProperty('buildJarOutputDir') && project.hasProperty('uniqueBuildNumber')
-	}
-
+	onlyIf { project.hasProperty('buildJarOutputDir') && project.hasProperty('uniqueBuildNumber') }
 	if (project.findProperty('copyBuildJar').toBoolean()) {
-
-		// shortcut for jar.outputs.files
 		from remapJar
-//        from shadowJar
 		into project.findProperty('buildJarOutputDir')
 		// add build number to be able to distinguish jars when testing thorough official launcher
 		// build number is stored in global gradle.properties
-		rename { fileName -> fileName.replace("v${project.modversion}", "v${project.modversion}-build${uniqueBuildNumber}") }
+		rename { fileName -> fileName.replace("v${project.modversion}", "v${project.modversion}.${uniqueBuildNumber}") }
 	}
 }
 
 task incrementBuildNumber {
-
-	onlyIf {
-
-		project.hasProperty('uniqueBuildNumber')
-	}
-
+	onlyIf { project.hasProperty('uniqueBuildNumber') }
 	doLast {
-
 		def propertiesName = 'gradle.properties'
 		// build number is stored in global gradle.properties
 		def propertiesFile = new File(project.gradle.gradleUserHomeDir, propertiesName)
-		if (!propertiesFile.canRead()) {
-
-			throw new FileNotFoundException("Could not read file ".concat(propertiesName))
-		}
-
+		if (!propertiesFile.canRead()) { throw new FileNotFoundException("Could not read file ".concat(propertiesName)) }
 		def buildNumberMatcher = Pattern.compile("uniqueBuildNumber=(\\d+)").matcher(propertiesFile.getText())
 		buildNumberMatcher.find()
 		def versionCode = Integer.parseInt(buildNumberMatcher.group(1))
@@ -241,34 +213,14 @@ import groovy.json.*
 import java.util.regex.Pattern
 
 def static getNextVersion(String puzzlesVersion) {
-
 	def puzzlesVersionMatcher = Pattern.compile("(\\d+\\.\\d+)").matcher(puzzlesVersion)
 	puzzlesVersionMatcher.find()
 	def currentVersion = puzzlesVersionMatcher.group(1)
 	return currentVersion.substring(0, currentVersion.indexOf(".") + 1).concat(String.valueOf(Integer.parseInt(currentVersion.substring(currentVersion.indexOf(".") + 1, currentVersion.size())) + 1))
 }
 
+signing {
+	sign publishing.publications.mavenJava
+}
+
 build.finalizedBy project.copyJarToDir, project.incrementBuildNumber
-
-artifacts {
-
-	archives jar
-//    archives shadowJar
-//    archives deobfJar
-//    archives sourceJar
-//    archives javadocJar
-}
-
-publishing {
-
-	publications {
-
-		mavenJava (MavenPublication) {
-
-			artifact deobfJar
-			artifact sourceJar
-			artifact javadocJar
-			from components.java
-		}
-	}
-}
