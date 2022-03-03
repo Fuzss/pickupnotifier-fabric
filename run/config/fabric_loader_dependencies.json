@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "overrides": {
+    "forgeconfigapiport": {
+      "-depends": {
+        "com_electronwill_night-config_core": "",
+        "com_electronwill_night-config_toml": ""
+      }
+    },
+    "puzzleslib": {
+      "-depends": {
+        "cardinal-components-base": "",
+        "cardinal-components-item": "",
+        "cardinal-components-entity": "",
+        "cardinal-components-block": "",
+        "cardinal-components-chunk": "",
+        "cardinal-components-world": ""
+      }
+    }
+  }
+}
